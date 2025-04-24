@@ -48,7 +48,12 @@ INSTALLED_APPS = [
     'payments',
     'chats',
     'disputes',
+    'django_filters',
     ]
+
+ADMIN_SITE_HEADER = "Artisan Services Administration"
+ADMIN_SITE_TITLE = "Artisan Services Admin Portal"
+ADMIN_INDEX_TITLE = "Welcome to Artisan Services Admin"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -78,8 +83,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'artisans_backend.wsgi.application'
-
+# Custom user model
 AUTH_USER_MODEL = 'accounts.User'
+
+# Admin settings
+ADMIN_SITE_HEADER = "Artisan Services Administration"
+ADMIN_SITE_TITLE = "Artisan Services Admin Portal"
+ADMIN_INDEX_TITLE = "Welcome to Artisan Services Admin"
+
+# File uploads
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
 # Database

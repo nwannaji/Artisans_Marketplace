@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "896772263250",
+    "project_id": "artisans-app-8a0d9",
+    "storage_bucket": "artisans-app-8a0d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:896772263250:android:7bd10db08817ea82ef7e8b",
+        "android_client_info": {
+          "package_name": "com.example.artisans_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOtb8XptvIRho2RHLRf90B0Lg_vXRkvek"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

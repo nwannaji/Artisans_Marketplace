@@ -1,0 +1,125 @@
+  SHA1: 6A:33:C9:00:5A:A6:A3:4B:61:EA:C7:EE:1E:F4:FB:F0:AD:EE:C0:B4
+lib/
+│
+├── main.dart
+├── screens/
+│   ├── register_artisan.dart
+│   ├── artisan_dashboard.dart
+│   ├── customer_dashboard.dart
+│   ├── search_artisans.dart
+│   └── job_detail.dart
+│
+├── models/
+│   ├── artisan.dart
+│   ├── job.dart
+│
+├── services/
+│   ├── api_service.dart
+│   ├── auth_service.dart
+│   └── payment_service.dart
+│
+├── widgets/
+│   ├── artisan_card.dart
+│   └── rating_stars.dart
+
+
+============================================================================================
+1. Authentication
+Firebase Auth (OTP/email-password)
+
+Role-based login (Customer / Artisan / Admin)
+
+2. Artisan Registration
+Personal info, profession, bank info, upload docs
+
+Location auto-filled via GPS
+
+3. Customer Dashboard
+Search bar + filters (location, price, profession)
+
+Artisan list with distance, rating, cost
+
+4. Job Booking + Scheduler
+Select artisan → Pick date/time via showDatePicker()
+
+Store job as "scheduled"
+
+Set up local/FCM reminder 1 hour before appointment
+
+5. Chat System (Firebase Firestore)
+chats/{chatId}/messages/{message}
+
+Uses Firestore or Socket.IO for real-time chat
+
+Flutter plugin: flutter_chat_ui or flutter_socket_io
+
+6. Google Maps Integration
+Use google_maps_flutter & geolocator
+
+Show artisan on map
+
+Directions from customer location to artisan
+
+7. In-App Wallet System
+Customer wallet balance → Pay from wallet or card
+
+Artisan wallet reflects job earnings
+
+Transfer button (to bank via Paystack/Flutterwave)
+
+Admin wallet → receives commission
+
+8. Dispute Resolution (Admin Dashboard)
+View flagged jobs (e.g., "Not completed", "Poor service")
+
+Contact both parties via chat/email
+
+Decide to refund or release payment
+========================================================================
+Admin Dashboard (Django Admin or Flutter Web)
+Admin can:
+
+Verify artisans
+
+Suspend users
+
+See all bookings & wallet activity
+
+View unresolved disputes
+
+Manage app settings (commission %, payout delay)
+===========================================================================
+Booking Flow Example
+Customer searches → selects artisan
+
+Books service for April 14 @ 10:00 AM
+
+Reminder sent via Firebase Cloud Messaging (9:00 AM)
+
+Job is marked as Completed
+
+Customer rates artisan
+
+Payment auto-transferred to artisan wallet
+
+Artisan can withdraw to bank
+=========================================================================
+Part	Tech
+Frontend	Flutter (mobile app)
+Backend	Django REST API
+Realtime	Firebase Firestore or Django Channels
+Payment	Paystack / Flutterwave
+Maps	Google Maps API
+Hosting	Render, Heroku, or Railway (backend), Firebase Hosting (static)
+Storage	Firebase Storage or AWS S3 (for profile pics, certs)
+
+===========================================================================
+ Key Flutter Packages
+Feature	Package
+Chat	flutter_chat_ui, firebase_core, cloud_firestore
+Maps	google_maps_flutter, geocoding, geolocator
+Notifications	firebase_messaging, flutter_local_notifications
+Payments	paystack_flutter, flutterwave_standard, http
+Auth	firebase_auth or jwt_decoder
+Scheduling	table_calendar, flutter_datetime_picker
+
