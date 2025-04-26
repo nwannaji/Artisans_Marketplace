@@ -34,10 +34,11 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('apps.accounts.urls')),
-    path('api/artisans/', include('apps.artisans.urls')),
-    path('api/bookings/', include('apps.bookings.urls')),
-    path('api/payments/', include('apps.payments.urls')),
-    path('api/disputes/', include('apps.disputes.urls')),
+    path('api/auth/', include('accounts.urls')),
+    path('api/artisans/', include('artisans_app.urls')),
+    path('api/bookings/', include('bookings.urls')),
+    path('api/chats/', include('chats.urls')),
+    path('api/payments/', include('payments.urls')),
+    path('api/disputes/', include('disputes.urls')),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

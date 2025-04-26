@@ -1,7 +1,13 @@
 from django.contrib import admin
-from .models import ArtisanProfile
+from accounts.models import ArtisanProfile
 from django.utils.html import format_html
 
+try:
+    admin.site.unregister(ArtisanProfile)
+except admin.sites.NotRegistered:
+    pass
+
+@admin.register(ArtisanProfile)
 class ArtisanProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'profession', 'location', 'hourly_rate', 'rating', 'is_verified', 'verification_status')
     list_filter = ('profession', 'is_verified')
@@ -41,5 +47,3 @@ class ArtisanProfileAdmin(admin.ModelAdmin):
     def unverify_artisans(self, request, queryset):
         queryset.update(is_verified=False)
     unverify_artisans.short_description = "Unverify selected artisans"
-
-admin.site.register(ArtisanProfile, ArtisanProfileAdmin)

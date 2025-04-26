@@ -1,6 +1,6 @@
 # apps/artisans/filters.py
 import django_filters
-from .models import ArtisanProfile
+from accounts.models import ArtisanProfile
 
 class ArtisanFilter(django_filters.FilterSet):
     min_rating = django_filters.NumberFilter(field_name='rating', lookup_expr='gte')

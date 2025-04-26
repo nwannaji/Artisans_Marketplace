@@ -22,8 +22,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
 SECRET_KEY = os.getenv('SECRET_KEY')
+EBULKSMS_USERNAME =os.getenv('SMS_USERNAME')
+EBULKSMS_API_KEY = os.getenv('SMS_API_KEY')
+EBULKSMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME')
+
+# Payment Gateways
+PAYSTACK_SECRET_KEY =os.getenv('PAYSTACK_SECRET_KEY')
+PAYSTACK_PUBLIC_KEY =os.getenv('PAYSTACK_PUBLIC_KEY')
+PAYSTACK_API_URL =os.getenv('PAYSTACK_API_URL')
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -41,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'accounts',
     'artisans_app',
@@ -50,6 +59,12 @@ INSTALLED_APPS = [
     'disputes',
     'django_filters',
     ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+}
 
 ADMIN_SITE_HEADER = "Artisan Services Administration"
 ADMIN_SITE_TITLE = "Artisan Services Admin Portal"

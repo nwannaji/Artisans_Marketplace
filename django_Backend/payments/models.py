@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from accounts.models import User
 from bookings.models import Job
@@ -15,7 +16,7 @@ class Wallet(models.Model):
         default=0.00,
         validators=[MinValueValidator(0)]
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
@@ -54,3 +55,15 @@ class Transaction(models.Model):
     
     def __str__(self):
         return f"{self.get_transaction_type_display()} - ${self.amount} ({self.status})"
+    
+class AppSettings(models.Model):
+    key = models.CharField(max_length=255, unique=True)
+    value = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.key}: {self.value}"
+
+    @classmethod
+    def get_value(cls, key):
+        setting = cls.objects.filter(key=key).first()
+        return setting.value if setting else None

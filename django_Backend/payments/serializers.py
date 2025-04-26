@@ -1,26 +1,32 @@
 from rest_framework import serializers
-from .models import Wallet, Transaction, WithdrawalRequest
+from .models import Wallet, Transaction, AppSettings
+from accounts.models import User
+from bookings.models import Job
 
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wallet
-        fields = ['balance', 'created_at', 'updated_at']
-        read_only_fields = fields
+        fields = ['user', 'balance', 'created_at', 'updated_at']
 
 class TransactionSerializer(serializers.ModelSerializer):
+    wallet = WalletSerializer(read_only=True)
+    job_id = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all(), source='job')
+
     class Meta:
         model = Transaction
-        fields = '__all__'
-        read_only_fields = fields
+        fields = ['wallet', 'amount', 'transaction_type', 'status', 'reference', 'job_id', 'description', 'created_at']
 
-class DepositSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2,
-        min_value=0.01
-    )
+    def create(self, validated_data):
+        # Here you can add logic to process the transaction (e.g., deducting from the wallet, etc.)
+        return Transaction.objects.create(**validated_data)
 
-class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+class AppSettingsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = WithdrawalRequest
-        fields = ['amount', 'bank_account', 'bank_name']
+        model = AppSettings
+        fields = ['key', 'value']

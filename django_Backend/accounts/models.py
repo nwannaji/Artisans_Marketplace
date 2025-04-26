@@ -1,8 +1,10 @@
+from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+# User model
 class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = 'ADMIN', _('Administrator')
@@ -24,19 +26,25 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
 
+# Abstract base profile
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
 
+# Customer Profile
 class CustomerProfile(UserProfile):
     address = models.TextField(blank=True, null=True)
 
+    def __str__(self):
+        return f"Customer Profile - {self.user.username}"
+
+# Artisan Profile
 class ArtisanProfile(UserProfile):
     profession = models.CharField(max_length=100)
     skills = models.JSONField(default=list)
@@ -51,3 +59,6 @@ class ArtisanProfile(UserProfile):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     verification_documents = models.JSONField(default=list)
     is_verified = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Artisan Profile - {self.user.username}"

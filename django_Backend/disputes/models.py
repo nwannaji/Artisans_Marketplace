@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from bookings.models import Job
 from accounts.models import User
@@ -46,7 +47,7 @@ class Dispute(models.Model):
         null=True,
         related_name='resolved_disputes'
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     resolved_at = models.DateTimeField(blank=True, null=True)
     
     def __str__(self):

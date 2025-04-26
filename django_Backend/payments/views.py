@@ -1,174 +1,170 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from django.db import transaction
-from django.utils import timezone
 
-from django_Backend.bookings import serializers
-from .models import Wallet, Transaction, WithdrawalRequest
-from .serializers import (
-    WalletSerializer, 
-    TransactionSerializer,
-    WithdrawalRequestSerializer,
-    DepositSerializer
-)
-from bookings.models import Job
+from payments.utils import send_sms
+from .models import Wallet, Transaction, AppSettings
+from  .serializers import WalletSerializer, TransactionSerializer, AppSettingsSerializer
+from django.db import transaction as db_transaction
 from accounts.models import User
 
 class WalletDetailAPIView(generics.RetrieveAPIView):
+    queryset = Wallet.objects.all()
     serializer_class = WalletSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
-        return wallet
+        return self.request.user.wallet  # Fetch wallet for the logged-in user
 
-class TransactionListAPIView(generics.ListAPIView):
+class TransactionListCreateAPIView(generics.ListCreateAPIView):
+    queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
-        return Transaction.objects.filter(wallet=wallet).order_by('-created_at')
-
-class DepositCreateAPIView(generics.CreateAPIView):
-    serializer_class = DepositSerializer
-    permission_classes = [permissions.IsAuthenticated]
+        # Filter transactions for the logged-in user's wallet
+        user = self.request.user
+        return Transaction.objects.filter(wallet=user.wallet)
 
     def perform_create(self, serializer):
-        with transaction.atomic():
-            wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
-            amount = serializer.validated_data['amount']
-            
-            # Create deposit transaction
-            Transaction.objects.create(
-                wallet=wallet,
-                amount=amount,
-                transaction_type=Transaction.Type.DEPOSIT,
-                status=Transaction.Status.COMPLETED,
-                reference=f"DEP_{self.request.user.id}_{timezone.now().timestamp()}"
-            )
-            
-            # Update wallet balance
-            wallet.balance += amount
-            wallet.save()
+        # Logic for creating a new transaction, ensure balance is sufficient for payment/withdrawal
+        wallet = self.request.user.wallet
+        amount = serializer.validated_data['amount']
+        transaction_type = serializer.validated_data['transaction_type']
 
-class WithdrawalRequestCreateAPIView(generics.CreateAPIView):
-    serializer_class = WithdrawalRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+        if transaction_type == Transaction.Type.PAYMENT and wallet.balance < amount:
+            raise serializer.ValidationError("Insufficient funds for payment.")
 
-    def perform_create(self, serializer):
-        with transaction.atomic():
-            wallet, _ = Wallet.objects.get_or_create(user=self.request.user)
-            amount = serializer.validated_data['amount']
-            
-            if wallet.balance < amount:
-                raise serializers.ValidationError(
-                    {"error": "Insufficient balance"}
-                )
-            
-            # Create withdrawal request
-            withdrawal = WithdrawalRequest.objects.create(
-                wallet=wallet,
-                amount=amount,
-                bank_account=serializer.validated_data['bank_account'],
-                bank_name=serializer.validated_data['bank_name'],
-                status=WithdrawalRequest.Status.PENDING
-            )
-            
-            # Deduct from wallet immediately
-            Transaction.objects.create(
-                wallet=wallet,
-                amount=amount,
-                transaction_type=Transaction.Type.WITHDRAWAL,
-                status=Transaction.Status.PENDING,
-                reference=f"WDR_{withdrawal.id}"
-            )
-            
+        # Deduct balance for payments and withdrawals
+        if transaction_type in [Transaction.Type.PAYMENT, Transaction.Type.WITHDRAWAL]:
             wallet.balance -= amount
             wallet.save()
 
-class ProcessPaymentAPIView(generics.CreateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+        serializer.save(wallet=wallet)  # Save the transaction with the wallet
 
-    def post(self, request, job_id):
-        with transaction.atomic():
-            try:
-                job = Job.objects.get(id=job_id)
-            except Job.DoesNotExist:
-                return Response(
-                    {"error": "Job not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+class TransactionUpdateAPIView(generics.UpdateAPIView):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAdminUser]  # Admin can update transaction status
 
-            if job.customer != request.user:
-                return Response(
-                    {"error": "You can only pay for your own jobs"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+    def perform_update(self, serializer):
+        # For example, handling payment completion
+        instance = serializer.save()
 
-            if job.status != Job.Status.COMPLETED:
-                return Response(
-                    {"error": "Job must be completed before payment"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        if instance.status == Transaction.Status.COMPLETED:
+            # Credit the wallet if it's a completed payment
+            if instance.transaction_type == Transaction.Type.PAYMENT:
+                wallet = instance.wallet
+                wallet.balance += instance.amount
+                wallet.save()
 
-            customer_wallet, _ = Wallet.objects.get_or_create(user=job.customer)
-            artisan_wallet, _ = Wallet.objects.get_or_create(user=job.artisan.user)
+        return instance
 
-            if customer_wallet.balance < job.agreed_price:
-                return Response(
-                    {"error": "Insufficient wallet balance"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+class AppSettingsRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView):
+    queryset = AppSettings.objects.all()
+    serializer_class = AppSettingsSerializer
+    permission_classes = [permissions.IsAdminUser]  # Only admin can update settings
 
-            # Calculate commission (10%)
-            commission = job.agreed_price * 0.1
-            artisan_amount = job.agreed_price - commission
+    def get_object(self):
+        # Retrieve a setting by key
+        key = self.kwargs.get('key')
+        return AppSettings.objects.get(key=key)
 
-            # Customer payment transaction
-            Transaction.objects.create(
-                wallet=customer_wallet,
-                amount=job.agreed_price,
+
+
+import requests
+from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Transaction, Wallet
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
+from .serializers import TransactionSerializer
+
+class PaystackPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        # Get the amount and reference from the request data
+        amount = request.data.get('amount')
+        job_id = request.data.get('job_id')
+
+        # Check if the wallet has enough funds
+        wallet = request.user.wallet
+        if wallet.balance < amount:
+            return Response({'error': 'Insufficient funds'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Initialize payment
+        reference = f"paystack-{wallet.user.id}-{job_id}"  # Create a unique reference
+        url = f"{settings.PAYSTACK_API_URL}/transaction/initialize"
+        headers = {
+            'Authorization': f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+            'Content-Type': 'application/json',
+        }
+        data = {
+            'amount': int(amount * 100),  # Amount should be in kobo (100 kobo = 1 Naira)
+            'email': wallet.user.email,
+            'reference': reference,
+            'callback_url': 'https://yourdomain.com/paystack/callback/',  # Change to your actual callback URL
+        }
+        
+        response = requests.post(url, json=data, headers=headers)
+        result = response.json()
+
+        if response.status_code == 200:
+            # Store the transaction
+            transaction = Transaction.objects.create(
+                wallet=wallet,
+                amount=amount,
                 transaction_type=Transaction.Type.PAYMENT,
-                status=Transaction.Status.COMPLETED,
-                job=job,
-                reference=f"PAY_{job.id}"
+                status=Transaction.Status.PENDING,
+                reference=reference,
+                job_id=job_id
             )
 
-            # Artisan receipt transaction
-            Transaction.objects.create(
-                wallet=artisan_wallet,
-                amount=artisan_amount,
-                transaction_type=Transaction.Type.PAYMENT,
-                status=Transaction.Status.PENDING,  # Will be completed after payout delay
-                job=job,
-                reference=f"REC_{job.id}"
-            )
+            return Response({'authorization_url': result['data']['authorization_url']})
+        else:
+            return Response({'error': result.get('message', 'Payment initialization failed.')}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Commission transaction
-            admin_wallet, _ = Wallet.objects.get_or_create(user=User.objects.get(role=User.Role.ADMIN))
-            Transaction.objects.create(
-                wallet=admin_wallet,
-                amount=commission,
-                transaction_type=Transaction.Type.COMMISSION,
-                status=Transaction.Status.COMPLETED,
-                job=job,
-                reference=f"COM_{job.id}"
-            )
+class PaystackPaymentCallbackView(APIView):
+    permission_classes = [IsAuthenticated]
 
-            # Update balances
-            customer_wallet.balance -= job.agreed_price
-            artisan_wallet.balance += artisan_amount
-            admin_wallet.balance += commission
+    def post(self, request, *args, **kwargs):
+        reference = request.data.get('reference')
 
-            customer_wallet.save()
-            artisan_wallet.save()
-            admin_wallet.save()
+        # Verify the payment with Paystack API
+        url = f"{settings.PAYSTACK_API_URL}/transaction/verify/{reference}"
+        headers = {
+            'Authorization': f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+        }
+        response = requests.get(url, headers=headers)
+        result = response.json()
 
-            job.status = Job.Status.COMPLETED
-            job.save()
+        if response.status_code == 200 and result['data']['status'] == 'success':
+            # Payment was successful, update transaction status
+            transaction = get_object_or_404(Transaction, reference=reference)
+            transaction.status = Transaction.Status.COMPLETED
+            transaction.save()
 
-            return Response(
-                {"message": "Payment processed successfully"},
-                status=status.HTTP_200_OK
-            )
+            # Update wallet balance
+            wallet = transaction.wallet
+            wallet.balance -= transaction.amount
+            wallet.save()
+
+            # Notify user about successful payment
+            self.send_payment_notification(wallet.user, transaction)
+
+            return Response({'status': 'Payment successful'})
+
+        else:
+            return Response({'error': 'Payment verification failed'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def send_payment_notification(self, user, transaction):
+        message = (
+            f"Hi {user.username}, your payment of ₦{transaction.amount} was successful.\n"
+            f"Reference: {transaction.reference}\n"
+            "Thank you for your patronage."
+        )
+        send_sms(user.phone, message)
+
+

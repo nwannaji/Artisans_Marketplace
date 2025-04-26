@@ -1,5 +1,6 @@
+from datetime import timezone
 from django.contrib import admin
-from .models import Wallet, Transaction, WithdrawalRequest, AppSettings
+from .models import AppSettings, Wallet, Transaction
 from django.utils.html import format_html
 
 class TransactionInline(admin.TabularInline):
@@ -62,43 +63,43 @@ class TransactionAdmin(admin.ModelAdmin):
         )
     status_badge.short_description = 'Status'
 
-class WithdrawalRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'wallet', 'amount_display', 'status_badge', 'created_at')
-    list_filter = ('status', 'created_at')
-    search_fields = ('wallet__user__username', 'bank_account', 'bank_name')
-    readonly_fields = ('created_at',)
-    actions = ['approve_requests', 'reject_requests', 'mark_as_processed']
-    date_hierarchy = 'created_at'
+# class WithdrawalRequestAdmin(admin.ModelAdmin):
+#     list_display = ('id', 'wallet', 'amount_display', 'status_badge', 'created_at')
+#     list_filter = ('status', 'created_at')
+#     search_fields = ('wallet__user__username', 'bank_account', 'bank_name')
+#     readonly_fields = ('created_at',)
+#     actions = ['approve_requests', 'reject_requests', 'mark_as_processed']
+#     date_hierarchy = 'created_at'
     
-    def amount_display(self, obj):
-        return f"${obj.amount}"
-    amount_display.short_description = 'Amount'
+#     def amount_display(self, obj):
+#         return f"${obj.amount}"
+#     amount_display.short_description = 'Amount'
     
-    def status_badge(self, obj):
-        color_map = {
-            'pending': 'orange',
-            'approved': 'blue',
-            'rejected': 'red',
-            'processed': 'green',
-        }
-        return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 10px;">{}</span>',
-            color_map.get(obj.status, 'gray'),
-            obj.get_status_display()
-        )
-    status_badge.short_description = 'Status'
+#     def status_badge(self, obj):
+#         color_map = {
+#             'pending': 'orange',
+#             'approved': 'blue',
+#             'rejected': 'red',
+#             'processed': 'green',
+#         }
+#         return format_html(
+#             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 10px;">{}</span>',
+#             color_map.get(obj.status, 'gray'),
+#             obj.get_status_display()
+#         )
+#     status_badge.short_description = 'Status'
     
-    def approve_requests(self, request, queryset):
-        queryset.update(status='approved')
-    approve_requests.short_description = "Approve selected requests"
+#     def approve_requests(self, request, queryset):
+#         queryset.update(status='approved')
+#     approve_requests.short_description = "Approve selected requests"
     
-    def reject_requests(self, request, queryset):
-        queryset.update(status='rejected')
-    reject_requests.short_description = "Reject selected requests"
+#     def reject_requests(self, request, queryset):
+#         queryset.update(status='rejected')
+#     reject_requests.short_description = "Reject selected requests"
     
-    def mark_as_processed(self, request, queryset):
-        queryset.update(status='processed', processed_at=timezone.now())
-    mark_as_processed.short_description = "Mark as processed"
+#     def mark_as_processed(self, request, queryset):
+#         queryset.update(status='processed', processed_at=timezone.now())
+#     mark_as_processed.short_description = "Mark as processed"
 
 class AppSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
@@ -107,5 +108,5 @@ class AppSettingsAdmin(admin.ModelAdmin):
 
 admin.site.register(Wallet, WalletAdmin)
 admin.site.register(Transaction, TransactionAdmin)
-admin.site.register(WithdrawalRequest, WithdrawalRequestAdmin)
+# admin.site.register(Transaction, WithdrawalRequestAdmin)
 admin.site.register(AppSettings, AppSettingsAdmin)

@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from accounts.models import User, ArtisanProfile
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -38,7 +39,7 @@ class Job(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(5)]
     )
     review = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):

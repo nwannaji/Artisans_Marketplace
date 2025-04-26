@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from .models import Job
-from .serializers import JobSerializer, JobCreateSerializer
-from apps.accounts.models import User
-from apps.artisans.models import ArtisanProfile
+from .serializers import JobSerializer
+from accounts.models import User
+from accounts.models import ArtisanProfile
 
 class JobListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = JobSerializer
@@ -32,7 +32,7 @@ class JobListCreateAPIView(generics.ListCreateAPIView):
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
-            return JobCreateSerializer
+            return JobSerializer
         return JobSerializer
 
     def perform_create(self, serializer):
@@ -108,3 +108,4 @@ class JobStatusUpdateAPIView(generics.UpdateAPIView):
         job.status = new_status
         job.save()
         return Response(self.get_serializer(job)).data
+    
