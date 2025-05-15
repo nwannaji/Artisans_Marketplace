@@ -5,7 +5,7 @@ class AppUser {
   final String? email;
   final String phoneNumber;
   final String? password;
-  final String role; // 'artisan' or 'customer'
+  final String role; // 'artisan','customer' or 'admin'
 
   AppUser({
     required this.id,

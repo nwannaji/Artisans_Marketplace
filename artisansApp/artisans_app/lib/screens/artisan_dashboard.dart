@@ -4,17 +4,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'rating_selector.dart';
+import 'dart:math';
 
-class ArtisanDashboardScreen extends StatefulWidget {
-  const ArtisanDashboardScreen({super.key});
+class ArtisanDashboardScreen extends StatelessWidget {
+  final int imageCount;
+  const ArtisanDashboardScreen({super.key, this.imageCount = 25});
 
-  @override
-  State<ArtisanDashboardScreen> createState() => _ArtisanDashboardScreenState();
-}
-
-class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final random = Random();
+    // Generate random Positioned widgets
+    List<Widget> scatteredImages = List.generate(imageCount, (index) {
+      double top = random.nextDouble() * screenSize.height;
+      double left = random.nextDouble() * screenSize.width;
+
+      return Positioned(
+        top: top,
+        left: left,
+        child: Opacity(
+          opacity: 0.05,
+          child: Image.asset('assets/setting.webp', width: 60, height: 60),
+        ),
+      );
+    });
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 188, 194, 197),
       appBar: AppBar(
@@ -22,25 +35,23 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
           'Artisan Dashboard',
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: const Color.fromARGB(255, 45, 99, 153),
+        backgroundColor: Colors.teal,
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            label: const Text('Logout', style: TextStyle(color: Colors.white)),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          // Background Image
-          Center(
-            child: ClipOval(
-              child: Opacity(
-                opacity: 0.3,
-                child: Image.asset(
-                  'assets/setting.webp',
-                  width: 300,
-                  height: 300,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-
+          ...scatteredImages,
           // Stream for fetching artisan details
           StreamBuilder<QuerySnapshot>(
             stream:
@@ -93,7 +104,7 @@ class ArtisanCard extends StatefulWidget {
 class _ArtisanCardState extends State<ArtisanCard> {
   final TextEditingController _locationController = TextEditingController();
   final LocationService _locationService = LocationService();
-  String _LocationData = '';
+  String _locationData = '';
   double _userRating = 0.0;
 
   void _handleRatingChange(double rating) {
@@ -109,17 +120,25 @@ class _ArtisanCardState extends State<ArtisanCard> {
   }
 
   Future<void> _fetchAndSetLocation() async {
-    final location = await _locationService.getNearestPlaceDescription();
-    setState(() {
-      _locationController.text = location;
-      _LocationData = location;
-    });
+    try {
+      final location = await _locationService.getNearestPlaceDescription();
+      if (!mounted) return;
+      setState(() {
+        _locationController.text = location;
+        _locationData = location;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        "Failed to fetch location:${e.toString()}";
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color.fromARGB(255, 96, 154, 85),
+      color: const Color.fromARGB(255, 12, 12, 11),
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 8,
       shadowColor: Colors.grey.withAlpha(128),
@@ -151,17 +170,24 @@ class _ArtisanCardState extends State<ArtisanCard> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Expertise: ${widget.data['occupation'] ?? ''}',
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Location: ${_LocationData.isEmpty ? 'Fetching...' : _LocationData}',
-                        style: const TextStyle(fontSize: 14),
+                        'Location: ${_locationData.isEmpty ? 'Fetching...' : _locationData}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       RatingSelector(
@@ -180,7 +206,10 @@ class _ArtisanCardState extends State<ArtisanCard> {
               child: TextButton.icon(
                 onPressed: () => _startChat(context, widget.data),
                 icon: const Icon(Icons.chat, size: 16),
-                label: const Text('Chat'),
+                label: const Text(
+                  'Chat',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -210,40 +239,4 @@ class _ArtisanCardState extends State<ArtisanCard> {
       );
     }
   }
-
-  // Widget _buildRatingSelector() {
-  //   return Row(
-  //     crossAxisAlignment: CrossAxisAlignment.center,
-  //     children: [
-  //       const Text('Ratings:', style: TextStyle(fontSize: 14)),
-  //       const SizedBox(width: 6),
-
-  //       // Star icons (tappable)
-  //       Row(
-  //         children: List.generate(5, (index) {
-  //           return GestureDetector(
-  //             onTap: () {
-  //               setState(() {
-  //                 _selectedRating = index + 1.0;
-  //               });
-  //             },
-  //             child: Icon(
-  //               index < _selectedRating ? Icons.star : Icons.star_border,
-  //               color: Colors.amber,
-  //               size: 20,
-  //             ),
-  //           );
-  //         }),
-  //       ),
-
-  //       const SizedBox(width: 6),
-
-  //       // Numeric value beside stars
-  //       Text(
-  //         '${_selectedRating.toStringAsFixed(1)} Stars',
-  //         style: const TextStyle(fontSize: 14),
-  //       ),
-  //     ],
-  //   );
-  // }
 }

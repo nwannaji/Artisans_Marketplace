@@ -6,13 +6,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ChatScreenPage extends StatefulWidget {
+  final String employerPhone;
+  final String artisanPhone;
   final String peerPhone;
 
   const ChatScreenPage({
     super.key,
     required this.peerPhone,
-    required employerPhone,
-    required artisanPhone,
+    required this.employerPhone,
+    required this.artisanPhone,
   });
 
   @override
@@ -21,11 +23,26 @@ class ChatScreenPage extends StatefulWidget {
 
 class _ChatScreenPageState extends State<ChatScreenPage> {
   final TextEditingController _messageController = TextEditingController();
-  final user = FirebaseAuth.instance.currentUser;
   final picker = ImagePicker();
 
+  User? user;
+
+  @override
+  void initState() {
+    super.initState();
+    user = FirebaseAuth.instance.currentUser;
+    if (user == null || user!.phoneNumber == null || widget.peerPhone.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Invalid user or peer phone number.")),
+        );
+        Navigator.pop(context);
+      });
+    }
+  }
+
   String get chatId {
-    List<String> phones = [user!.phoneNumber!, widget.peerPhone];
+    final phones = [widget.employerPhone, widget.artisanPhone];
     phones.sort();
     return phones.join("_");
   }
@@ -48,7 +65,7 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
         .doc(chatId)
         .collection('messages')
         .add({
-          'sender': user!.phoneNumber,
+          'sender': user?.phoneNumber ?? widget.employerPhone,
           'receiver': widget.peerPhone,
           'message': message,
           'mediaUrl': mediaUrl,
@@ -132,10 +149,10 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
           "Chat with ${widget.peerPhone}",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Color.fromARGB(255, 45, 99, 153),
+        backgroundColor: Colors.teal,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               // Example logout for Firebase:
               await FirebaseAuth.instance.signOut();
@@ -159,7 +176,9 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
                       .orderBy('timestamp')
                       .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const CircularProgressIndicator();
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator(color: Colors.amber);
+                }
 
                 final messages = snapshot.data!.docs;
 
@@ -168,7 +187,9 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final data = messages[index].data() as Map<String, dynamic>;
-                    final isSentByMe = data['sender'] == user!.phoneNumber;
+                    final isSentByMe =
+                        data['sender'] == user?.phoneNumber ||
+                        data['sender'] == widget.employerPhone;
                     return buildMessageBubble(data, isSentByMe);
                   },
                 );

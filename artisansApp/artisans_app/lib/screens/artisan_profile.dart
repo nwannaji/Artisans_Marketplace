@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:artisans_app/auth/location_service.dart';
+import 'package:artisans_app/screens/artisan_dashboard.dart';
+import 'package:artisans_app/screens/scattered_background_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -7,8 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ArtisanProfileScreen extends StatefulWidget {
-  const ArtisanProfileScreen({super.key, required this.artisanId});
-  final String artisanId;
+  const ArtisanProfileScreen({super.key});
 
   @override
   State<ArtisanProfileScreen> createState() => _ArtisanProfileScreenState();
@@ -21,7 +22,6 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
   final _lastNameController = TextEditingController();
   final _expertiseController = TextEditingController();
   final _locationController = TextEditingController();
-  final _landmarkController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _bankNameController = TextEditingController();
 
@@ -30,24 +30,16 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
   File? _profileImage;
   String profileImageUrl = '';
   final ImagePicker _picker = ImagePicker();
-  double _selectedRating = 0.0;
+  final double _selectedRating = 0.0;
 
   @override
   void initState() {
     super.initState();
-    locationService.getNearestPlaceDescription();
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _expertiseController.dispose();
-    _locationController.dispose();
-    _landmarkController.dispose();
-    _accountNumberController.dispose();
-    _bankNameController.dispose();
-    super.dispose();
+    locationService.getNearestPlaceDescription().then((description) {
+      setState(() {
+        _locationController.text = description;
+      });
+    });
   }
 
   void _showSnackBar(String message) {
@@ -105,7 +97,6 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
         'profilePicture': profileImageUrl,
         'occupation': _expertiseController.text,
         'location': _locationController.text,
-        'landmark': _landmarkController.text,
         'accountNumber': _accountNumberController.text,
         'bankName': _bankNameController.text,
         'ratings': newAverage,
@@ -132,12 +123,22 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _expertiseController.dispose();
+    _locationController.dispose();
+    _accountNumberController.dispose();
+    _bankNameController.dispose();
+    super.dispose();
+  }
+
   void _clearFields() {
     _firstNameController.clear();
     _lastNameController.clear();
     _expertiseController.clear();
     _locationController.clear();
-    _landmarkController.clear();
     _accountNumberController.clear();
     _bankNameController.clear();
     setState(() {
@@ -200,7 +201,9 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
       context: context,
       barrierDismissible: false, // Prevents dismissal on outside touch
       builder: (BuildContext context) {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(
+          child: CircularProgressIndicator(color: Colors.amber),
+        );
       },
     );
   }
@@ -227,47 +230,10 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
     );
   }
 
-  Widget _buildRatingSelector() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Text('Ratings:', style: TextStyle(fontSize: 14)),
-        const SizedBox(width: 6),
-
-        // Star icons (tappable)
-        Row(
-          children: List.generate(5, (index) {
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedRating = index + 1.0;
-                });
-                _saveProfile();
-              },
-              child: Icon(
-                index < _selectedRating ? Icons.star : Icons.star_border,
-                color: Colors.amber,
-                size: 20,
-              ),
-            );
-          }),
-        ),
-
-        const SizedBox(width: 6),
-
-        // Numeric value beside stars
-        Text(
-          '${_selectedRating.toStringAsFixed(1)} Stars',
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFFF8E1),
+      backgroundColor: const Color.fromARGB(255, 188, 194, 197),
       appBar: AppBar(
         title: Center(
           child: const Text(
@@ -275,85 +241,88 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
             style: TextStyle(color: Colors.white),
           ),
         ),
-        backgroundColor: Color.fromARGB(255, 45, 99, 153),
+        backgroundColor: Colors.teal,
       ),
-      body: Stack(
-        children: [
-          Center(
-            child: ClipOval(
-              child: Opacity(
-                opacity: 0.3,
-                child: Image.asset(
-                  'assets/setting.webp',
-                  width: 300,
-                  height: 300,
-                  fit: BoxFit.cover,
-                ),
+      body: ScatteredBackground(
+        imageCount: 20,
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _pickProfilePhoto,
+                      child: CircleAvatar(
+                        radius: 45,
+                        backgroundImage:
+                            _profileImage != null
+                                ? FileImage(_profileImage!)
+                                : null,
+                        child:
+                            _profileImage == null
+                                ? const Icon(Icons.person, size: 45)
+                                : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTextField('First Name', _firstNameController),
+                        _buildTextField('Last Name', _lastNameController),
+                        _buildTextField('Occupation', _expertiseController),
+                        _buildTextField(
+                          'Location',
+                          _locationController,
+                          readOnly: true,
+                        ),
+                        _buildTextField(
+                          'Account Number',
+                          _accountNumberController,
+                        ),
+                        _buildTextField('Bank Name', _bankNameController),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Profile',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ArtisanDashboardScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      "Go to Dashboard",
+                      style: TextStyle(color: Color.fromARGB(255, 3, 6, 165)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: GestureDetector(
-                    onTap: _pickProfilePhoto,
-                    child: CircleAvatar(
-                      radius: 45,
-                      backgroundImage:
-                          _profileImage != null
-                              ? FileImage(_profileImage!)
-                              : null,
-                      child:
-                          _profileImage == null
-                              ? const Icon(Icons.person, size: 45)
-                              : null,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTextField('First Name', _firstNameController),
-                      _buildTextField('Last Name', _lastNameController),
-                      _buildTextField('Occupation', _expertiseController),
-                      _buildTextField(
-                        'Location',
-                        _locationController,
-                        readOnly: true,
-                      ),
-                      _buildTextField('Landmark', _landmarkController),
-                      _buildTextField(
-                        'Account Number',
-                        _accountNumberController,
-                      ),
-                      _buildTextField('Bank Name', _bankNameController),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.lightBlue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    'Save Profile',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

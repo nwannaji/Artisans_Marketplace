@@ -5,7 +5,6 @@ class Artisan {
   final String profilePicture;
   final String expertise; // Plumbing, Electrical, etc.
   final String location;
-  final String landmark;
   final String accountNumber;
   final String bankName;
   final int ratings; //5=highest stars or one Gold
@@ -18,7 +17,6 @@ class Artisan {
     required this.profilePicture,
     required this.expertise,
     required this.location,
-    required this.landmark,
     required this.accountNumber,
     required this.bankName,
     required this.ratings,

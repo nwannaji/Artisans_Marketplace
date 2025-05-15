@@ -1,7 +1,10 @@
-import 'package:artisans_app/auth/login_screen.dart';
+import 'package:artisans_app/auth/login_logic.dart';
+// import 'package:artisans_app/auth/login_screen.dart';
 import 'package:artisans_app/auth/sign_up.dart';
 import 'package:artisans_app/models/user.dart';
 import 'package:artisans_app/screens/artisan_dashboard.dart';
+import 'package:artisans_app/screens/user_home_screen.dart';
+import 'package:artisans_app/screens/admin_dashboard.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,27 +27,35 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This function checks the user's status and determines the next screen
+  // This function checks the user's role and returns the appropriate screen
   Future<Widget> _getInitialScreen() async {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser != null) {
-      final artisanDoc =
+      final userDoc =
           await FirebaseFirestore.instance
-              .collection('artisans')
+              .collection('users')
               .doc(currentUser.uid)
               .get();
 
-      if (artisanDoc.exists) {
-        // If user is an artisan, show the Artisan Dashboard
-        return ArtisanDashboardScreen();
-      } else {
-        // If the user is not an artisan, show the Artisan Dashboard to view available artisans
-        return ArtisanDashboardScreen();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        final role = data['role'];
+
+        if (role == 'User') {
+          return const HomePage();
+        } else if (role == 'Artisan') {
+          return ArtisanDashboardScreen();
+        } else if (role == 'Admin') {
+          return const AdminDashboard();
+        } else {
+          return const LoginPage(); // fallback
+        }
       }
     }
-    // If the user is not logged in, show the login screen
-    return const LoginScreen();
+
+    // If no user is logged in
+    return const LoginPage();
   }
 
   @override
@@ -60,7 +71,7 @@ class MyApp extends StatelessWidget {
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case '/login':
-            return MaterialPageRoute(builder: (_) => const LoginScreen());
+            return MaterialPageRoute(builder: (_) => const LoginPage());
           case '/signup':
             final args = settings.arguments as AppUser;
             return MaterialPageRoute(
@@ -68,6 +79,10 @@ class MyApp extends StatelessWidget {
             );
           case '/artisan_dashboard':
             return MaterialPageRoute(builder: (_) => ArtisanDashboardScreen());
+          case '/user_home':
+            return MaterialPageRoute(builder: (_) => const HomePage());
+          case '/admin_dashboard':
+            return MaterialPageRoute(builder: (_) => const AdminDashboard());
           default:
             return MaterialPageRoute(builder: (_) => const SplashScreen());
         }

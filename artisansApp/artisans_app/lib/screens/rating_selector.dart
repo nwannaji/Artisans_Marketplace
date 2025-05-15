@@ -29,7 +29,10 @@ class RatingSelectorState extends State<RatingSelector> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text('Ratings:', style: TextStyle(fontSize: 14)),
+        const Text(
+          'Ratings:',
+          style: TextStyle(fontSize: 14, color: Colors.white),
+        ),
         const SizedBox(width: 6),
         Row(
           children: List.generate(5, (index) {
@@ -51,7 +54,7 @@ class RatingSelectorState extends State<RatingSelector> {
         const SizedBox(width: 6),
         Text(
           '${_selectedRating.toStringAsFixed(1)} Stars',
-          style: const TextStyle(fontSize: 14),
+          style: const TextStyle(fontSize: 14, color: Colors.white),
         ),
       ],
     );
