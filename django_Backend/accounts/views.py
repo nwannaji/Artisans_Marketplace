@@ -44,11 +44,15 @@ class UserLoginAPIView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
+        user = serializer.validated_data['user']  # Fetch the user from validated data
 
+        # Login the user
         login(request, user)
+
+        # Get JWT tokens for the user
         tokens = serializer.get_tokens_for_user(user)
 
+        # Return the user data and tokens
         return Response({
             'user_id': user.pk,
             'email': user.email,

@@ -4,6 +4,8 @@ from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+from accounts.users_manager import CustomUserManager
+
 # User model
 class User(AbstractUser):
     class Role(models.TextChoices):
@@ -22,6 +24,7 @@ class User(AbstractUser):
         default=False,
         help_text="For artisans/admins, must be approved by admin"
     )
+    objects = CustomUserManager()
     
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"

@@ -11,6 +11,8 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
         classpath("com.android.tools.build:gradle:8.7.3")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.21")
+        classpath ("com.google.gms:google-services:4.3.15")
+
     }
 }
 
@@ -19,11 +21,6 @@ allprojects {
         google()
         mavenCentral()
     }
-}
-
-plugins {
-    // Makes the Google Services plugin available but doesn't apply it globally
-    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()

@@ -42,33 +42,32 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 # User Login Serializer
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField()
+    role = serializers.CharField()
 
     def validate(self, attrs):
         username = attrs.get('username')
         password = attrs.get('password')
+        role = attrs.get('role')
 
-        if username and password:
-            user = authenticate(username=username, password=password)
-            if user:
-                if not user.is_active and user.role in [User.Role.ARTISAN, User.Role.ADMIN]:
-                    raise serializers.ValidationError(
-                        "Account is pending admin approval. Please contact support."
-                    )
-                attrs['user'] = user
-            else:
-                raise serializers.ValidationError("Invalid credentials")
-        else:
-            raise serializers.ValidationError("Both 'username' and 'password' are required.")
+        user = authenticate(username=username, password=password)
+        
+        if user is None:
+            raise serializers.ValidationError('Invalid credentials')
 
-        return attrs
+        if user.role != role:
+            raise serializers.ValidationError('Role mismatch')
 
-    @staticmethod
-    def get_tokens_for_user(user):
-        refresh = RefreshToken.for_user(user)
         return {
+            'user': user,
+        }
+    def get_tokens_for_user(self, user):
+        # Generate and return the tokens (JWT or similar)
+        refresh = RefreshToken.for_user(user)
+        access_token = refresh.access_token
+        return {
+            'access': str(access_token),
             'refresh': str(refresh),
-            'access': str(refresh.access_token),
         }
 
 # Artisan Profile Serializer

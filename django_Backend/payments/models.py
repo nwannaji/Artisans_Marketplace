@@ -51,7 +51,7 @@ class Transaction(models.Model):
         null=True
     )
     description = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     
     def __str__(self):
         return f"{self.get_transaction_type_display()} - ${self.amount} ({self.status})"

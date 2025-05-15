@@ -36,7 +36,7 @@ PAYSTACK_API_URL =os.getenv('PAYSTACK_API_URL')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -60,6 +60,12 @@ INSTALLED_APPS = [
     'django_filters',
     ]
 
+#CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://10.0.2.2:8000",  # Add your specific origin here
+]
+
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -71,6 +77,7 @@ ADMIN_SITE_TITLE = "Artisan Services Admin Portal"
 ADMIN_INDEX_TITLE = "Welcome to Artisan Services Admin"
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

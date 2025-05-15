@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied last
     id("com.google.gms.google-services") // Firebase services
     id("dev.flutter.flutter-gradle-plugin") // Flutter Gradle plugin
 }
@@ -44,6 +43,12 @@ android {
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
     implementation("com.google.firebase:firebase-analytics")
+    implementation ("com.google.firebase:firebase-database")
+    implementation ("com.google.firebase:firebase-appcheck-playintegrity:17.0.0")
+    implementation ("com.google.android.play:integrity:1.4.0")
+    implementation ("com.google.firebase:firebase-appcheck-debug:17.0.0") // or latest
+
+
     // Add more Firebase services as needed (auth, firestore, etc.)
 }
 
