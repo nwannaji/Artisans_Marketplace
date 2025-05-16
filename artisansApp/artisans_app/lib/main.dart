@@ -45,7 +45,7 @@ class MyApp extends StatelessWidget {
         if (role == 'User') {
           return const HomePage();
         } else if (role == 'Artisan') {
-          return ArtisanDashboardScreen();
+          return const ArtisanDashboardScreen();
         } else if (role == 'Admin') {
           return const AdminDashboard();
         } else {
@@ -78,7 +78,9 @@ class MyApp extends StatelessWidget {
               builder: (_) => ArtisanSignUpScreen(appUser: args),
             );
           case '/artisan_dashboard':
-            return MaterialPageRoute(builder: (_) => ArtisanDashboardScreen());
+            return MaterialPageRoute(
+              builder: (_) => const ArtisanDashboardScreen(),
+            );
           case '/user_home':
             return MaterialPageRoute(builder: (_) => const HomePage());
           case '/admin_dashboard':

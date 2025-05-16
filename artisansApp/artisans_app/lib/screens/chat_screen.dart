@@ -1,20 +1,22 @@
 import 'dart:io';
+
+import 'package:artisans_app/auth/chat_service.dart';
+import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ChatScreenPage extends StatefulWidget {
-  final String employerPhone;
-  final String artisanPhone;
-  final String peerPhone;
+  final String chatId;
+  final String currentUserId;
+  final String receiverId;
 
   const ChatScreenPage({
+    required this.chatId,
+    required this.currentUserId,
+    required this.receiverId,
     super.key,
-    required this.peerPhone,
-    required this.employerPhone,
-    required this.artisanPhone,
   });
 
   @override
@@ -22,208 +24,188 @@ class ChatScreenPage extends StatefulWidget {
 }
 
 class _ChatScreenPageState extends State<ChatScreenPage> {
+  final ChatService _chatService = ChatService();
   final TextEditingController _messageController = TextEditingController();
-  final picker = ImagePicker();
+  final ScrollController _scrollController = ScrollController();
 
-  User? user;
+  void _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    await _chatService.sendMessage(
+      chatId: widget.chatId,
+      message: text,
+      senderId: widget.currentUserId,
+      receiverId: widget.receiverId,
+    );
+
+    _messageController.clear();
+    _scrollToBottom();
+  }
+
+  Future<void> _sendImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      String imageUrl = await _chatService.uploadImage(
+        File(pickedFile.path),
+        widget.chatId,
+      );
+
+      await _chatService.sendMessage(
+        chatId: widget.chatId,
+        message: '',
+        senderId: widget.currentUserId,
+        receiverId: widget.receiverId,
+        mediaUrl: imageUrl,
+        mediaType: 'image',
+        isImage: true,
+      );
+
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    user = FirebaseAuth.instance.currentUser;
-    if (user == null || user!.phoneNumber == null || widget.peerPhone.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid user or peer phone number.")),
-        );
-        Navigator.pop(context);
-      });
-    }
-  }
-
-  String get chatId {
-    final phones = [widget.employerPhone, widget.artisanPhone];
-    phones.sort();
-    return phones.join("_");
-  }
-
-  Future<void> sendTextMessage() async {
-    final message = _messageController.text.trim();
-    if (message.isEmpty) return;
-
-    await _sendMessageToFirestore(message: message);
-    _messageController.clear();
-  }
-
-  Future<void> _sendMessageToFirestore({
-    required String message,
-    String? mediaUrl,
-    String? mediaType,
-  }) async {
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .add({
-          'sender': user?.phoneNumber ?? widget.employerPhone,
-          'receiver': widget.peerPhone,
-          'message': message,
-          'mediaUrl': mediaUrl,
-          'mediaType': mediaType,
-          'timestamp': FieldValue.serverTimestamp(),
-          'read': false,
-        });
-  }
-
-  Future<void> pickAndSendImage() async {
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile == null) return;
-
-    final file = File(pickedFile.path);
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    final storageRef = FirebaseStorage.instance.ref().child(
-      'chat_media/$chatId/$fileName.jpg',
-    );
-
-    try {
-      await storageRef.putFile(file);
-      final downloadUrl = await storageRef.getDownloadURL();
-
-      await _sendMessageToFirestore(
-        message: "📷 Image",
-        mediaUrl: downloadUrl,
-        mediaType: "image",
-      );
-    } catch (e) {
-      // Handle any error that occurs during file upload
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
-      }
-    }
-  }
-
-  Widget buildMessageBubble(Map<String, dynamic> data, bool isSentByMe) {
-    final hasMedia = data['mediaUrl'] != null;
-
-    return Align(
-      alignment: isSentByMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSentByMe ? Colors.blue : Colors.grey[300],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (hasMedia && data['mediaType'] == 'image')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Image.network(
-                  data['mediaUrl'],
-                  width: 200,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            Text(
-              data['message'] ?? '',
-              style: TextStyle(
-                color: isSentByMe ? Colors.white : Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    _chatService.markMessagesAsRead(widget.chatId, widget.currentUserId);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFFFFF8E1),
-      appBar: AppBar(
-        title: Text(
-          "Chat with ${widget.peerPhone}",
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.teal,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              // Example logout for Firebase:
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                // Navigate to Login screen
-                Navigator.pushReplacementNamed(context, '/login');
-              }
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance
-                      .collection('chats')
-                      .doc(chatId)
-                      .collection('messages')
-                      .orderBy('timestamp')
-                      .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const CircularProgressIndicator(color: Colors.amber);
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: const Color.fromARGB(255, 188, 194, 197),
+        appBar: AppBar(
+          title: const Text('Chat', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.teal,
+          actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.logout, color: Colors.white),
+              label: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.white),
+              ),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
                 }
-
-                final messages = snapshot.data!.docs;
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final data = messages[index].data() as Map<String, dynamic>;
-                    final isSentByMe =
-                        data['sender'] == user?.phoneNumber ||
-                        data['sender'] == widget.employerPhone;
-                    return buildMessageBubble(data, isSentByMe);
-                  },
-                );
               },
             ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.image),
-                  onPressed: pickAndSendImage,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: "Type a message...",
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: () {
-                    sendTextMessage();
-                    _messageController.clear();
+          ],
+        ),
+        body: ScatteredBackground(
+          imageCount: 20,
+          child: Column(
+            children: [
+              // Messages List
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _chatService.getMessages(widget.chatId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final messages = snapshot.data?.docs ?? [];
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final data = messages[index];
+                        final isMe = data['senderId'] == widget.currentUserId;
+
+                        // Safely get data as Map<String, dynamic>
+                        final dataMap = data.data() as Map<String, dynamic>;
+                        // Check if this message is an image
+                        final bool isImage = dataMap['isImage'] ?? false;
+                        // final imageUrl = data['mediaUrl'];
+
+                        return Align(
+                          alignment:
+                              isMe
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 8,
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.blue[100] : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            // Show image or text message
+                            child:
+                                isImage
+                                    ? Image.network(
+                                      dataMap['mediaUrl'] ?? '',
+                                      width: 200, // adjust size as needed
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                    )
+                                    : Text(dataMap['message'] ?? ''),
+                          ),
+                        );
+                      },
+                    );
                   },
                 ),
-              ],
-            ),
+              ),
+
+              // Message Input
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    // Upload Image
+                    IconButton(
+                      icon: const Icon(Icons.image, color: Colors.teal),
+                      onPressed: _sendImage,
+                    ),
+
+                    // Text field
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Type a message...'
+                              '',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Send button
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.blue),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

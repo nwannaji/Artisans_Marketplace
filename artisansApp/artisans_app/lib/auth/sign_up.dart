@@ -57,7 +57,7 @@ class _ArtisanSignUpScreenState extends State<ArtisanSignUpScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => ArtisanDashboardScreen()),
+          MaterialPageRoute(builder: (_) => const ArtisanDashboardScreen()),
         );
       }
     } catch (e) {
@@ -103,6 +103,6 @@ class _ArtisanSignUpScreenState extends State<ArtisanSignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: Center(child: const Text('Redirecting...')));
+    return const Scaffold(body: Center(child: Text('Redirecting...')));
   }
 }

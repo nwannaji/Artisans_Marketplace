@@ -135,6 +135,11 @@ class _ArtisanCardState extends State<ArtisanCard> {
     }
   }
 
+  String generateChatId(String user1, String user2) {
+    final users = [user1, user2]..sort();
+    return '${users[0]}_${users[1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -144,10 +149,12 @@ class _ArtisanCardState extends State<ArtisanCard> {
       shadowColor: Colors.grey.withAlpha(128),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min, // add this
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Profile picture
                 CircleAvatar(
@@ -160,7 +167,7 @@ class _ArtisanCardState extends State<ArtisanCard> {
                 ),
                 const SizedBox(width: 12),
 
-                // Artisan Information
+                // Artisan Information (wrapped with Expanded)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,6 +179,7 @@ class _ArtisanCardState extends State<ArtisanCard> {
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -180,6 +188,7 @@ class _ArtisanCardState extends State<ArtisanCard> {
                           fontSize: 14,
                           color: Colors.white,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -188,11 +197,15 @@ class _ArtisanCardState extends State<ArtisanCard> {
                           fontSize: 14,
                           color: Colors.white,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      RatingSelector(
-                        initialRating: _userRating,
-                        onRatingSelected: _handleRatingChange,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: RatingSelector(
+                          initialRating: _userRating,
+                          onRatingSelected: _handleRatingChange,
+                        ),
                       ),
                     ],
                   ),
@@ -200,11 +213,29 @@ class _ArtisanCardState extends State<ArtisanCard> {
               ],
             ),
             const SizedBox(height: 8),
+
             // Chat Button
             Align(
               alignment: Alignment.bottomLeft,
               child: TextButton.icon(
-                onPressed: () => _startChat(context, widget.data),
+                onPressed: () {
+                  String currentUserId =
+                      'userA'; // Replace with dynamic user ID
+                  String receiverId = 'userB'; // Replace with dynamic peer ID
+                  String chatId = generateChatId(currentUserId, receiverId);
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => ChatScreenPage(
+                            chatId: chatId,
+                            currentUserId: currentUserId,
+                            receiverId: receiverId,
+                          ),
+                    ),
+                  );
+                },
                 icon: const Icon(Icons.chat, size: 16),
                 label: const Text(
                   'Chat',
@@ -216,27 +247,5 @@ class _ArtisanCardState extends State<ArtisanCard> {
         ),
       ),
     );
-  }
-
-  void _startChat(BuildContext context, Map<String, dynamic> data) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (_) => ChatScreenPage(
-                employerPhone: currentUser.phoneNumber ?? '',
-                artisanPhone: data['phoneNumber'] ?? '',
-                peerPhone: '',
-              ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to start chat.')),
-      );
-    }
   }
 }

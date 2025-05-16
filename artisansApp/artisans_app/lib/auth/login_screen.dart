@@ -158,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (doc.exists) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => ArtisanProfileScreen()),
+          MaterialPageRoute(builder: (_) => const ArtisanProfileScreen()),
         );
       } else {
         final appUser = custom_user.AppUser(

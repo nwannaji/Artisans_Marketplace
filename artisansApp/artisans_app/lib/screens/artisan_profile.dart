@@ -235,11 +235,8 @@ class _ArtisanProfileScreenState extends State<ArtisanProfileScreen> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 188, 194, 197),
       appBar: AppBar(
-        title: Center(
-          child: const Text(
-            'Artisan Profile',
-            style: TextStyle(color: Colors.white),
-          ),
+        title: const Center(
+          child: Text('Artisan Profile', style: TextStyle(color: Colors.white)),
         ),
         backgroundColor: Colors.teal,
       ),

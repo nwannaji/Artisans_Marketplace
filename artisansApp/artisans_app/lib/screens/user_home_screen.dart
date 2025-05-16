@@ -1,20 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:logger/logger.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   Position? _currentPosition;
-  double abujalatitude = 9.0563;
-  double abujalongitude = 9.0563;
   List<DocumentSnapshot> allArtisans = [];
-  List<DocumentSnapshot> filteredArtisans = [];
+  List<Map<String, dynamic>> filteredArtisans = [];
   final searchController = TextEditingController();
+  final Map<String, LatLng> _locationCache = {};
+  GoogleMapController? mapController;
+  Logger logger = Logger();
 
   @override
   void initState() {
@@ -24,85 +30,178 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> getCurrentLocation() async {
-    _currentPosition = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    setState(() {});
+    try {
+      _currentPosition = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      setState(() {});
+    } catch (e) {
+      logger.d("Location error: $e");
+    }
   }
 
   Future<void> fetchArtisans() async {
     final snapshot =
-        await FirebaseFirestore.instance.collection('artisans').get();
+        await FirebaseFirestore.instance.collection('artisan-details').get();
     allArtisans = snapshot.docs;
-    filteredArtisans = allArtisans;
-    setState(() {});
+    await applyFilters();
   }
 
-  void filterArtisans(String query) {
-    final filtered =
-        allArtisans.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final name = data['name'].toString().toLowerCase();
-          final type = data['type'].toString().toLowerCase();
-          return name.contains(query.toLowerCase()) ||
-              type.contains(query.toLowerCase());
-        }).toList();
+  Future<void> applyFilters() async {
+    final query = searchController.text.toLowerCase();
+    List<Map<String, dynamic>> tempList = [];
 
-    setState(() {
-      filteredArtisans = filtered;
-    });
+    for (var doc in allArtisans) {
+      final data = doc.data() as Map<String, dynamic>;
+      final occupation = (data['occupation'] ?? '').toString().toLowerCase();
+      final location = (data['location'] ?? '').toString();
+
+      if (occupation.contains(query) ||
+          location.toLowerCase().contains(query)) {
+        LatLng? artisanLatLng = _locationCache[location];
+
+        if (artisanLatLng == null && location.isNotEmpty) {
+          try {
+            List<Location> locations = await locationFromAddress(location);
+            if (locations.isNotEmpty) {
+              artisanLatLng = LatLng(
+                locations.first.latitude,
+                locations.first.longitude,
+              );
+              _locationCache[location] = artisanLatLng;
+            }
+          } catch (e) {
+            logger.d("Geocoding failed for $location: $e");
+          }
+        }
+
+        if (artisanLatLng != null && _currentPosition != null) {
+          final distanceInMeters = Geolocator.distanceBetween(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+            artisanLatLng.latitude,
+            artisanLatLng.longitude,
+          );
+          data['distance_km'] = (distanceInMeters / 1000).toStringAsFixed(2);
+          data['latLng'] = artisanLatLng;
+          tempList.add(data);
+        }
+      }
+    }
+
+    tempList.sort(
+      (a, b) =>
+          (double.parse(a['distance_km']) - double.parse(b['distance_km']))
+              .round(),
+    );
+    setState(() => filteredArtisans = tempList);
   }
 
-  double calculateDistance(lat, lon) {
-    abujalatitude = lat;
-    abujalatitude = lon;
-    if (_currentPosition == null) return 0.0;
-    return Geolocator.distanceBetween(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          lat,
-          lon,
-        ) /
-        1000;
+  Set<Marker> _buildMarkers() {
+    return filteredArtisans.map((artisan) {
+      final LatLng latLng = artisan['latLng'];
+      return Marker(
+        markerId: MarkerId(artisan['firstName']),
+        position: latLng,
+        infoWindow: InfoWindow(
+          title: "${artisan['firstName']} ${artisan['lastName']}",
+          snippet: "${artisan['occupation']} • ${artisan['distance_km']} km",
+        ),
+      );
+    }).toSet();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Find Artisans")),
+      backgroundColor: const Color.fromARGB(255, 188, 194, 197),
+      appBar: AppBar(
+        title: const Text(
+          "Find Artisans Nearby",
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.teal,
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            label: const Text('Logout', style: TextStyle(color: Colors.white)),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+          ),
+        ],
+      ),
       body:
           _currentPosition == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(
+                child: CircularProgressIndicator(color: Colors.amber),
+              )
               : Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: TextField(
-                      controller: searchController,
-                      decoration: const InputDecoration(
-                        labelText: "Search artisans...",
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: searchController,
+                            decoration: const InputDecoration(
+                              labelText: "Search by occupation or location",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: fetchArtisans,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(40, 50),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            backgroundColor: Colors.blue,
+                          ),
+                          child: const Icon(Icons.search, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        zoom: 12,
                       ),
-                      onChanged: filterArtisans,
+                      markers: _buildMarkers(),
+                      onMapCreated: (controller) => mapController = controller,
+                      myLocationEnabled: true,
                     ),
                   ),
                   Expanded(
                     child: ListView.builder(
                       itemCount: filteredArtisans.length,
                       itemBuilder: (context, index) {
-                        final data =
-                            filteredArtisans[index].data()
-                                as Map<String, dynamic>;
-                        final distance = calculateDistance(
-                          data['latitude'],
-                          data['longitude'],
-                        ).toStringAsFixed(2);
-
+                        final artisan = filteredArtisans[index];
                         return ListTile(
-                          title: Text("${data['name']} (${data['type']})"),
-                          subtitle: Text(
-                            "${data['location']} • $distance km away",
+                          leading: CircleAvatar(
+                            backgroundImage: NetworkImage(
+                              artisan['profilePicture'] ?? '',
+                            ),
                           ),
-                          leading: const Icon(Icons.person_pin_circle),
+                          title: Text(
+                            "${index + 1}. ${artisan['firstName']} ${artisan['lastName']}",
+                          ),
+                          subtitle: Text(
+                            "${artisan['occupation']} • ${artisan['distance_km']} km away",
+                          ),
+                          trailing: Text(artisan['location'] ?? ''),
                         );
                       },
                     ),
