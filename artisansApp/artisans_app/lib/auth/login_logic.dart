@@ -1,11 +1,11 @@
 import 'package:artisans_app/auth/signup_logic.dart';
 import 'package:artisans_app/screens/admin_dashboard.dart';
-import 'package:artisans_app/screens/artisan_profile.dart';
+import 'package:artisans_app/screens/artisan_dashboard.dart';
 import 'package:artisans_app/screens/scattered_background_image.dart';
 import 'package:artisans_app/screens/user_home_screen.dart';
+import 'package:artisans_app/services/api_exception.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:artisans_app/services/auth_api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,57 +15,55 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final emailController = TextEditingController();
+  final usernameController = TextEditingController();
   final passwordController = TextEditingController();
+  String selectedRole = 'CUSTOMER';
   bool isLoading = false;
+  bool _obscurePassword = true;
+
+  final AuthApiService _authService = AuthApiService();
 
   Future<void> login(BuildContext context) async {
     setState(() => isLoading = true);
     try {
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
+      final response = await _authService.login(
+        username: usernameController.text.trim(),
         password: passwordController.text.trim(),
+        role: selectedRole,
       );
-      // Fetch user role from Firestore
-      final doc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(credential.user!.uid)
-              .get();
 
-      if (!doc.exists) {
-        throw Exception("User profile not found.");
-      }
-      final role = doc.data()?['role'];
+      if (!context.mounted) return;
 
-      // Redirect based on role
-      if (role == 'User') {
-        if (context.mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
-        }
-      } else if (role == 'Artisan') {
-        if (context.mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const ArtisanProfileScreen()),
-          );
-        }
-      } else if (role == 'Admin') {
-        if (context.mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const AdminDashboard()),
-          );
-        }
+      final role = response['role'] as String;
+      if (role == 'CUSTOMER') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      } else if (role == 'ARTISAN') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ArtisanDashboardScreen()),
+        );
+      } else if (role == 'ADMIN') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
       } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Unknown role")));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unknown role")),
+        );
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.fullMessage, style: const TextStyle(fontSize: 13)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -74,17 +72,15 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 188, 194, 197),
       appBar: AppBar(
-        title: const Text("Login", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.teal,
+        title: const Text("Login"),
       ),
       body: ScatteredBackground(
         imageCount: 20,
@@ -93,36 +89,61 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             children: [
               TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "Email"),
+                controller: usernameController,
+                decoration: const InputDecoration(
+                  labelText: "Username",
+                  prefixIcon: Icon(Icons.person),
+                  border: OutlineInputBorder(),
+                ),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(labelText: "Password"),
-                obscureText: true,
-              ),
-              const SizedBox(height: 20),
-              isLoading
-                  ? const CircularProgressIndicator(
-                    color: Color.fromARGB(255, 159, 113, 6),
-                  )
-                  : ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    onPressed: () => login(context),
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(color: Colors.white),
-                    ),
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  prefixIcon: const Icon(Icons.lock),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
+                ),
+                obscureText: _obscurePassword,
+              ),
+              const SizedBox(height: 12),
+              // SECURITY: Admin login is handled separately; regular users only see Customer/Artisan
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                items: const [
+                  DropdownMenuItem(value: 'CUSTOMER', child: Text('Customer')),
+                  DropdownMenuItem(value: 'ARTISAN', child: Text('Artisan')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => selectedRole = value);
+                },
+                decoration: const InputDecoration(
+                  labelText: "Login as",
+                  prefixIcon: Icon(Icons.badge),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => login(context),
+                        child: const Text("Login", style: TextStyle(fontSize: 16)),
+                      ),
+              ),
+              const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
                   Navigator.push(
@@ -130,10 +151,7 @@ class _LoginPageState extends State<LoginPage> {
                     MaterialPageRoute(builder: (_) => const SignupPage()),
                   );
                 },
-                child: const Text(
-                  "No account? Sign Up",
-                  style: TextStyle(color: Color.fromARGB(255, 3, 6, 165)),
-                ),
+                child: const Text("No account? Sign Up"),
               ),
             ],
           ),

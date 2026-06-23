@@ -1,0 +1,206 @@
+import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ichat_app/main.dart';
+import 'package:provider/provider.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+import '../allConstants/constants.dart';
+import '../allProviders/auth_provider.dart';
+import '../allScreens/login_page.dart';
+import '../allScreens/settings_page.dart';
+import '../allModels/popup_choices.dart';
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final GoogleSignIn googleSignIn = GoogleSignIn();
+  final ScrollController listScrollController = ScrollController();
+  int _limit = 20;
+  final int _limitIncrement = 20;
+  bool isLoading = false;
+  late String currentUserId;
+  late AuthenticationProvider authProvider;
+
+  List<PopupChoices> choices = <PopupChoices>[
+    PopupChoices(title: 'Settings', icon: Icons.settings),
+    PopupChoices(title: 'Sign Out', icon: Icons.exit_to_app),
+  ];
+
+  Future<void> handleSignOut() async {
+    setState(() {
+      isLoading = true;
+    });
+    await authProvider.handleSignOut();
+    setState(() {
+      isLoading = false;
+    });
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginPage()),
+      );
+    }
+  }
+
+  void scrollListener() {
+    if (listScrollController.offset >=
+            listScrollController.position.maxScrollExtent &&
+        !listScrollController.position.outOfRange) {
+      setState(() {
+        _limit += _limitIncrement;
+      });
+    }
+  }
+
+  void onItemMenuPress(PopupChoices choice) {
+    if (choice.title == "Sign Out") {
+      handleSignOut();
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => SettingsPage()),
+      );
+    }
+  }
+
+  Widget buildPopupMenu() {
+    return PopupMenuButton<PopupChoices>(
+      icon: Icon(Icons.more_vert, color: Colors.grey),
+      onSelected: onItemMenuPress,
+      itemBuilder: (BuildContext context) {
+        return choices.map((PopupChoices choice) {
+          return PopupMenuItem<PopupChoices>(
+            value: choice,
+            child: Row(
+              children: <Widget>[
+                Icon(choice.icon, color: ColorConstants.primaryColor),
+                Container(width: 10),
+                Text(
+                  choice.title,
+                  style: TextStyle(color: ColorConstants.primaryColor),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    authProvider = context.read<AuthenticationProvider>();
+    if (authProvider.getUserFirebaseId()?.isNotEmpty == true) {
+      currentUserId = authProvider.getUserFirebaseId()!;
+      FirebaseFirestore.instance.collection('users').doc(currentUserId).update({
+        'isOnline': true,
+      });
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginPage()),
+        (Route<dynamic> route) => false,
+      );
+    }
+    listScrollController.addListener(scrollListener);
+  }
+
+  @override
+  void dispose() {
+    FirebaseFirestore.instance.collection('users').doc(currentUserId).update({
+      'isOnline': false,
+      'lastSeen': Timestamp.now(),
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: isWhite ? Colors.white : Colors.black,
+      appBar: AppBar(
+        backgroundColor: isWhite ? Colors.white : Colors.black,
+        leading: IconButton(
+          icon: Switch(
+            value: isWhite,
+            onChanged: (value) {
+              setState(() {
+                isWhite = value;
+              });
+            },
+            activeTrackColor: Colors.grey,
+            activeColor: Colors.white,
+            inactiveTrackColor: Colors.grey,
+            inactiveThumbColor: Colors.black45,
+          ),
+          onPressed: () => "",
+        ),
+        actions: <Widget>[buildPopupMenu()],
+      ),
+      body:
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : StreamBuilder<QuerySnapshot>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('users')
+                        .orderBy('nickname')
+                        .limit(_limit)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    print("Firestore error: ${snapshot.error}");
+                    return const Center(child: Text("Something went wrong."));
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text("No users found."));
+                  }
+
+                  final users = snapshot.data!.docs;
+                  print("Fetched users count: ${users.length}");
+
+                  return ListView.builder(
+                    itemCount: users.length,
+                    controller: listScrollController,
+                    itemBuilder: (context, index) {
+                      final user = users[index];
+
+                      if (user.id == currentUserId) return Container();
+
+                      final isOnline = user['isOnline'] ?? false;
+                      final lastSeen = user['lastSeen']?.toDate();
+                      final nickname = user['nickname'] ?? 'Unknown';
+                      final photoUrl = user['photoUrl'] ?? '';
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: NetworkImage(photoUrl),
+                        ),
+                        title: Text(nickname),
+                        subtitle:
+                            isOnline
+                                ? const Text(
+                                  'Online',
+                                  style: TextStyle(color: Colors.green),
+                                )
+                                : Text(
+                                  'Last seen: ${lastSeen != null ? timeago.format(lastSeen) : 'Unavailable'}',
+                                ),
+                        onTap: () {
+                          // Navigate to chat screen
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+    );
+  }
+}

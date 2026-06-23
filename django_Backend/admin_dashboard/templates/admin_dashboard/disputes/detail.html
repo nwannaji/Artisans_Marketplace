@@ -1,0 +1,118 @@
+{% extends "admin_dashboard/base.html" %}
+{% load naira %}
+
+{% block title %}Dispute #{{ dispute.pk }} — Fix-It Admin{% endblock %}
+{% block nav_disputes %}active{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div>
+        <a href="{% url 'admin_dashboard:dispute_list' %}" class="text-sm text-gray-500 hover:text-brand transition-colors"><i class="bi bi-arrow-left mr-1"></i>Back to Disputes</a>
+        <h2 class="text-2xl font-bold text-gray-900 mt-1">Dispute #{{ dispute.pk }}</h2>
+    </div>
+    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-{{ dispute.status|status_color }}/10 text-{{ dispute.status|status_color }}-700">{{ dispute.get_status_display }}</span>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 space-y-4">
+        <!-- Dispute Details -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h5 class="font-semibold text-gray-900">Dispute Details</h5>
+            </div>
+            <div class="divide-y divide-gray-100">
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Job</span><a href="{% url 'admin_dashboard:job_detail' dispute.job.pk %}" class="text-brand hover:underline font-medium">#{{ dispute.job.id }}</a></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Customer</span><span class="font-medium">{{ dispute.job.customer.username }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Artisan</span><span class="font-medium">{{ dispute.job.artisan.user.username|default:"Unassigned" }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Reason</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{{ dispute.get_reason_display }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Details</span><span class="font-medium">{{ dispute.details }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Held</span>{% if dispute.job.escrow_held_amount %}<span class="font-bold text-purple-700">{{ dispute.job.escrow_held_amount|naira }}</span>{% else %}<span class="text-gray-400">—</span>{% endif %}</div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium">{{ dispute.created_at|date:"M d, Y h:i A" }}</span></div>
+            </div>
+        </div>
+
+        {% if dispute.status != 'resolved' and dispute.status != 'closed' %}
+        <!-- Resolve Dispute -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h5 class="font-semibold text-gray-900">Resolve Dispute</h5>
+            </div>
+            <form method="post" action="{% url 'admin_dashboard:dispute_resolve' dispute.pk %}">
+                {% csrf_token %}
+                <div class="px-5 py-4 space-y-4">
+                    <div>
+                        <label for="resolution" class="block text-sm font-medium text-gray-700 mb-1">Resolution Details</label>
+                        <textarea name="resolution" id="resolution" rows="3" required placeholder="Describe the resolution..."
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none"></textarea>
+                    </div>
+                    {% if dispute.job.escrow_held_amount and dispute.job.escrow_held_amount > 0 %}
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="full_refund" id="fullRefund" value="on" checked
+                                   class="rounded border-gray-300 text-brand focus:ring-brand">
+                            <span class="text-sm">Full refund to customer ({{ dispute.job.escrow_held_amount|naira }})</span>
+                        </label>
+                        <div>
+                            <label for="refund_amount" class="block text-sm font-medium text-gray-700 mb-1">Or enter custom refund amount:</label>
+                            <input type="number" name="refund_amount" id="refund_amount" step="0.01" min="0.01" max="{{ dispute.job.escrow_held_amount }}" placeholder="Custom amount"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+                        </div>
+                    </div>
+                    {% endif %}
+                    <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                            onclick="return confirm('Resolve this dispute?')">
+                        <i class="bi bi-check-circle mr-1"></i>Resolve Dispute
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <!-- Resolution -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h5 class="font-semibold text-gray-900">Resolution</h5>
+            </div>
+            <div class="px-5 py-4 space-y-2">
+                <p class="text-gray-700">{{ dispute.resolution|default:"—" }}</p>
+                {% if dispute.resolution_amount %}
+                <p class="text-sm"><span class="text-gray-500">Refund Amount:</span> <strong class="text-purple-700">{{ dispute.resolution_amount|naira }}</strong></p>
+                {% endif %}
+                {% if dispute.resolved_by %}
+                <p class="text-xs text-gray-400">Resolved by {{ dispute.resolved_by.username }} on {{ dispute.resolved_at|date:"M d, Y h:i A" }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="space-y-4">
+        <!-- Job Info -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h5 class="font-semibold text-gray-900">Job Info</h5>
+            </div>
+            <div class="divide-y divide-gray-100">
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Status</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-{{ dispute.job.status|status_color }}/10 text-{{ dispute.job.status|status_color }}-700">{{ dispute.job.get_status_display }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Price</span><span class="font-medium">{{ dispute.job.agreed_price|naira }}</span></div>
+                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Description</span><span class="font-medium text-sm">{{ dispute.job.description|truncatewords:20 }}</span></div>
+            </div>
+        </div>
+
+        {% if transactions %}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h5 class="font-semibold text-gray-900">Transactions</h5>
+            </div>
+            <div class="divide-y divide-gray-100">
+                {% for txn in transactions %}
+                <div class="px-5 py-3 flex justify-between items-center">
+                    <span class="text-sm">{{ txn.get_transaction_type_display }}</span>
+                    <span class="font-medium text-sm">{{ txn.amount|naira }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

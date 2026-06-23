@@ -1,0 +1,22 @@
+/* =============================================
+   Fix-It Admin Dashboard — Custom Styles
+   Minimal overrides for Tailwind CSS v4
+   ============================================= */
+
+/* HTMX loading indicator */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator { display: inline-block; }
+.htmx-request .htmx-hide-on-request { display: none; }
+
+/* Print styles */
+@media print {
+    aside, header { display: none !important; }
+    main { margin-left: 0 !important; padding: 0 !important; }
+}
+
+/* Form input overrides for Tailwind + Django form widgets */
+input[type="number"].form-control,
+select.form-select {
+    /* These classes are no longer Bootstrap, but keeping for any
+       Django-rendered form widgets that might still reference them */
+}

@@ -3,23 +3,25 @@ import 'package:flutter/material.dart';
 
 class ScatteredBackground extends StatelessWidget {
   final int imageCount;
-  final Widget child; // Accept any widget
+  final Widget child;
+
+  // Seeded random to prevent position flickering on rebuilds
+  static final Random _random = Random(42);
 
   const ScatteredBackground({
     super.key,
     this.imageCount = 10,
-    required this.child, // Correct type and required keyword
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final random = Random();
 
-    // Generate random Positioned images
+    // Generate positioned images using seeded random for stable positions
     List<Widget> scatteredImages = List.generate(imageCount, (index) {
-      double top = random.nextDouble() * screenSize.height;
-      double left = random.nextDouble() * screenSize.width;
+      double top = _random.nextDouble() * screenSize.height;
+      double left = _random.nextDouble() * screenSize.width;
 
       return Positioned(
         top: top,
@@ -33,10 +35,7 @@ class ScatteredBackground extends StatelessWidget {
 
     return Stack(
       children: [
-        // Background images
         ...scatteredImages,
-
-        // Foreground content (TextFields, etc.)
         Positioned.fill(child: child),
       ],
     );

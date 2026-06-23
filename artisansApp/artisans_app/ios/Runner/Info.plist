@@ -3,7 +3,13 @@
 <plist version="1.0">
 <dict>
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>This app needs access to your location to provide relevant services.</string>
+<string>This app needs access to your location to show nearby artisans and provide service estimates.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>This app needs access to your microphone to record voice notes in chat.</string>
+<key>NSCameraUsageDescription</key>
+<string>This app needs access to your camera to take profile pictures and service photos.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>This app needs access to your photo library to select profile pictures and service photos.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

@@ -26,16 +26,17 @@ env_artisans/
 # ===================
 # Flutter: flutter-app/
 # ===================
-/artisans_app/.dart_tool/
-/artisans_app/.flutter-plugins
-/artisans_app/.flutter-plugins-dependencies
-/artisans_app/.packages
-/artisans_app/.idea/
-/artisans_app/.vscode/
-/artisans_app/build/
-/artisans_app/.android/
-/artisans_app/.ios/
-/artisans_app/pubspec.lock
+/artisansApp/artisans_app/.env
+/artisansApp/artisans_app/.dart_tool/
+/artisansApp/artisans_app/.flutter-plugins
+/artisansApp/artisans_app/.flutter-plugins-dependencies
+/artisansApp/artisans_app/.packages
+/artisansApp/artisans_app/.idea/
+/artisansApp/artisans_app/.vscode/
+/artisansApp/artisans_app/build/
+/artisansApp/artisans_app/.android/
+/artisansApp/artisans_app/.ios/
+/artisansApp/artisans_app/pubspec.lock
 
 # Flutter generated
 /artisans_app/generated_plugin_registrant.dart
@@ -54,3 +55,6 @@ env_artisans/
 # Google Services (if using Firebase)
 /artisans_app/android/app/google-services.json
 /artisans_app/ios/Runner/GoogleService-Info.plist
+
+# Log files
+logs/*.log

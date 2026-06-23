@@ -1,8 +1,7 @@
 import 'package:artisans_app/screens/scattered_background_image.dart';
-import 'package:artisans_app/screens/user_home_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:artisans_app/services/api_exception.dart';
 import 'package:flutter/material.dart';
+import 'package:artisans_app/services/auth_api_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -12,102 +11,223 @@ class SignupPage extends StatefulWidget {
 }
 
 class _SignupPageState extends State<SignupPage> {
+  final _formKey = GlobalKey<FormState>();
+  final usernameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  String selectedRole = 'Admin'; // default role
+  final password2Controller = TextEditingController();
+  final phoneController = TextEditingController();
+  final professionController = TextEditingController();
+  String selectedRole = 'CUSTOMER';
+  bool isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  final AuthApiService _authService = AuthApiService();
+
+  bool get _isArtisan => selectedRole == 'ARTISAN';
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return 'Password is required';
+    if (value.length < 8) return 'Password must be at least 8 characters';
+    if (!value.contains(RegExp(r'[A-Za-z]'))) return 'Password must contain at least one letter';
+    if (!value.contains(RegExp(r'[0-9]'))) return 'Password must contain at least one digit';
+    return null;
+  }
 
   Future<void> signup(BuildContext context) async {
-    try {
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: emailController.text.trim(),
-            password: passwordController.text.trim(),
-          );
+    if (!_formKey.currentState!.validate()) return;
 
-      // Save additional user info to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(credential.user!.uid)
-          .set({
-            'email': credential.user!.email,
-            'role': selectedRole,
-            'uid': credential.user!.uid,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+    setState(() => isLoading = true);
+    try {
+      final response = await _authService.register(
+        username: usernameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+        password2: password2Controller.text.trim(),
+        role: selectedRole,
+        phoneNumber: phoneController.text.trim(),
+        profession: _isArtisan ? professionController.text.trim() : null,
+      );
+
+      if (!context.mounted) return;
+
+      if (response.containsKey('tokens')) {
+        // Customer accounts are auto-activated — go to home
+        Navigator.pushReplacementNamed(context, '/user_home');
+      } else {
+        // Artisan/Admin accounts need admin approval
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Account created! Awaiting admin approval."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    } on ApiException catch (e) {
       if (context.mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.fullMessage, style: const TextStyle(fontSize: 13)),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Signup failed")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Signup failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 188, 194, 197),
       appBar: AppBar(
-        title: const Text("Sign Up", style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color.fromARGB(255, 45, 99, 153),
+        title: const Text("Sign Up"),
       ),
       body: ScatteredBackground(
         imageCount: 20,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "Email"),
-              ),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: "Password"),
-                obscureText: true,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: selectedRole,
-                items: const [
-                  DropdownMenuItem(value: 'User', child: Text('User')),
-                  DropdownMenuItem(value: 'Artisan', child: Text('Artisan')),
-                  DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: usernameController,
+                  decoration: const InputDecoration(
+                    labelText: "Username",
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty ? 'Username is required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: "Email",
+                    prefixIcon: Icon(Icons.email),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return 'Email is required';
+                    if (!value.contains('@')) return 'Enter a valid email';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: "Phone Number (optional)",
+                    prefixIcon: Icon(Icons.phone),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: passwordController,
+                  decoration: InputDecoration(
+                    labelText: "Password",
+                    prefixIcon: const Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  obscureText: _obscurePassword,
+                  validator: _validatePassword,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: password2Controller,
+                  decoration: InputDecoration(
+                    labelText: "Confirm Password",
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                    ),
+                  ),
+                  obscureText: _obscureConfirmPassword,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Please confirm your password';
+                    if (value != passwordController.text) return 'Passwords do not match';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // SECURITY: Admin accounts should only be created server-side.
+                // Customers and Artisans can self-register.
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  items: const [
+                    DropdownMenuItem(value: 'CUSTOMER', child: Text('Customer')),
+                    DropdownMenuItem(value: 'ARTISAN', child: Text('Artisan')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => selectedRole = value);
+                  },
+                  decoration: const InputDecoration(
+                    labelText: "Select Role",
+                    prefixIcon: Icon(Icons.badge),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (_isArtisan) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: professionController,
+                    decoration: const InputDecoration(
+                      labelText: "What do you do? (e.g. Plumber, Electrician, Painter)",
+                      prefixIcon: Icon(Icons.work),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: _isArtisan
+                        ? (value) =>
+                            value == null || value.trim().isEmpty ? 'Enter your trade or profession' : null
+                        : null,
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      selectedRole = value;
-                    });
-                  }
-                },
-                decoration: const InputDecoration(labelText: "Select Role"),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 8, 23, 187),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => signup(context),
+                          child: const Text("Register", style: TextStyle(fontSize: 16)),
+                        ),
                 ),
-                onPressed: () => signup(context),
-                child: const Text(
-                  "Register",
-                  style: TextStyle(color: Colors.white),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                  child: const Text("Already have an account? Login"),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

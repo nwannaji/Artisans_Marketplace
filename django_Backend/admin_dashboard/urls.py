@@ -1,0 +1,51 @@
+from django.urls import path
+from . import views
+
+app_name = 'admin_dashboard'
+
+urlpatterns = [
+    # Auth
+    path('', views.dashboard_overview, name='overview'),
+    path('login/', views.dashboard_login, name='login'),
+    path('logout/', views.dashboard_logout, name='logout'),
+
+    # Users
+    path('users/', views.user_list, name='user_list'),
+    path('users/<int:pk>/', views.user_detail, name='user_detail'),
+    path('users/<int:pk>/toggle-active/', views.user_toggle_active, name='user_toggle_active'),
+
+    # Artisans
+    path('artisans/', views.artisan_list, name='artisan_list'),
+    path('artisans/<int:pk>/', views.artisan_detail, name='artisan_detail'),
+    path('artisans/<int:pk>/toggle-verified/', views.artisan_toggle_verified, name='artisan_toggle_verified'),
+
+    # Jobs
+    path('jobs/', views.job_list, name='job_list'),
+    path('jobs/<int:pk>/', views.job_detail, name='job_detail'),
+    path('jobs/<int:pk>/approve/', views.job_approve, name='job_approve'),
+    path('jobs/<int:pk>/reject/', views.job_reject, name='job_reject'),
+
+    # Escrow
+    path('escrow/', views.escrow_list, name='escrow_list'),
+    path('escrow/<int:pk>/', views.escrow_detail, name='escrow_detail'),
+    path('escrow/<int:pk>/release/', views.escrow_release, name='escrow_release'),
+    path('escrow/<int:pk>/refund/', views.escrow_refund, name='escrow_refund'),
+
+    # Disputes
+    path('disputes/', views.dispute_list, name='dispute_list'),
+    path('disputes/<int:pk>/', views.dispute_detail, name='dispute_detail'),
+    path('disputes/<int:pk>/resolve/', views.dispute_resolve, name='dispute_resolve'),
+
+    # Chats
+    path('chats/', views.conversation_list, name='conversation_list'),
+    path('chats/<int:pk>/', views.conversation_detail, name='conversation_detail'),
+    path('chats/<int:conversation_id>/send/', views.admin_send_message, name='admin_send_message'),
+
+    # Settings
+    path('settings/commission/', views.commission_settings, name='commission_settings'),
+
+    # Transactions
+    path('transactions/', views.transaction_list, name='transaction_list'),
+    path('transactions/<int:pk>/complete/', views.transaction_complete, name='transaction_complete'),
+    path('transactions/<int:pk>/fail/', views.transaction_fail, name='transaction_fail'),
+]

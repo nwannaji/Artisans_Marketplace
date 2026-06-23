@@ -1,0 +1,28 @@
+<!-- HTMX partial: Toggle active button for user -->
+{% if user_obj.is_active %}
+<form method="post" action="{% url 'admin_dashboard:user_toggle_active' user_obj.pk %}"
+      hx-post="{% url 'admin_dashboard:user_toggle_active' user_obj.pk %}"
+      hx-target="#active-btn-{{ user_obj.pk }}"
+      hx-swap="innerHTML"
+      hx-confirm="Deactivate {{ user_obj.username }}?"
+      class="inline">
+    {% csrf_token %}
+    <button type="submit"
+            class="px-4 py-2 border border-red-300 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors cursor-pointer">
+        <i class="bi bi-x-circle mr-1"></i>Deactivate
+    </button>
+</form>
+{% else %}
+<form method="post" action="{% url 'admin_dashboard:user_toggle_active' user_obj.pk %}"
+      hx-post="{% url 'admin_dashboard:user_toggle_active' user_obj.pk %}"
+      hx-target="#active-btn-{{ user_obj.pk }}"
+      hx-swap="innerHTML"
+      hx-confirm="Activate {{ user_obj.username }}?"
+      class="inline">
+    {% csrf_token %}
+    <button type="submit"
+            class="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">
+        <i class="bi bi-check-circle mr-1"></i>Activate
+    </button>
+</form>
+{% endif %}

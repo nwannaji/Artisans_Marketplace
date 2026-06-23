@@ -1,8 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    id("com.google.gms.google-services") // Firebase services
-    id("dev.flutter.flutter-gradle-plugin") // Flutter Gradle plugin
+    id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
@@ -27,8 +26,23 @@ android {
         jvmTarget = "11"
     }
 
+    // SECURITY: Create a proper release keystore before shipping to production.
+    // See: https://docs.flutter.dev/deployment/android#signing-the-app
+    // Never ship debug-signed builds to production.
+    signingConfigs {
+        // TODO: Create a release keystore and configure it here:
+        // create("release") {
+        //     storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+        //     storePassword = System.getenv("KEYSTORE_PASSWORD")
+        //     keyAlias = System.getenv("KEY_ALIAS")
+        //     keyPassword = System.getenv("KEY_PASSWORD")
+        // }
+    }
+
     buildTypes {
         release {
+            // SECURITY: Replace debug signing with a proper release keystore before production!
+            // Using debug signing config allows anyone to modify and re-sign the APK.
             signingConfig = signingConfigs.getByName("debug") // change for release build later
             isMinifyEnabled = true
             isShrinkResources = true
@@ -41,15 +55,7 @@ android {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation ("com.google.firebase:firebase-database")
-    implementation ("com.google.firebase:firebase-appcheck-playintegrity:17.0.0")
-    implementation ("com.google.android.play:integrity:1.4.0")
-    implementation ("com.google.firebase:firebase-appcheck-debug:17.0.0") // or latest
-
-
-    // Add more Firebase services as needed (auth, firestore, etc.)
+    implementation("com.google.android.gms:play-services-maps:19.2.0")
 }
 
 flutter {

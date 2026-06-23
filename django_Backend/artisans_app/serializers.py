@@ -1,22 +1,29 @@
 # serializers.py
 from rest_framework import serializers
-from .models import ArtisanProfile
+from accounts.models import ArtisanProfile
+from bookings.models import Job
+
 
 class ArtisanProfileSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
+    review_count = serializers.SerializerMethodField()
+
     class Meta:
         model = ArtisanProfile
-        fields = '__all__'  # Or you can list fields manually
-        read_only_fields = ('created_at', 'updated_at')  # VERY IMPORTANT
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at', 'user', 'is_verified')
 
-    # Optional: If you want, you can customize validation, like making sure 'skills' is always a list
+    def get_review_count(self, obj):
+        return Job.objects.filter(
+            artisan=obj,
+            status=Job.Status.COMPLETED,
+            rating__isnull=False,
+        ).count()
+
     def validate_skills(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError("Skills must be a list.")
-        return value
-
-    def validate_certificates(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError("Certificates must be a list.")
         return value
 
     def validate_verification_documents(self, value):

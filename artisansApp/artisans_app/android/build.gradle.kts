@@ -31,6 +31,19 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
+// Fix namespace for Flutter plugins that don't specify one (required by AGP 8.x)
+subprojects {
+    afterEvaluate {
+        if (project.plugins.hasPlugin("com.android.library")) {
+            project.extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.let { ext ->
+                if (ext.namespace == null) {
+                    ext.namespace = project.group.toString().replace("-", ".")
+                }
+            }
+        }
+    }
+}
+
 // Ensures :app is evaluated before other subprojects (important for multi-module builds)
 subprojects {
     project.evaluationDependsOn(":app")

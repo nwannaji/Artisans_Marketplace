@@ -1,0 +1,56 @@
+{% extends "admin_dashboard/base.html" %}
+{% load naira %}
+
+{% block title %}Conversation #{{ conversation.pk }} — Fix-It Admin{% endblock %}
+{% block nav_chats %}active{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'admin_dashboard:conversation_list' %}" class="text-sm text-gray-500 hover:text-brand transition-colors"><i class="bi bi-arrow-left mr-1"></i>Back to Conversations</a>
+    <h2 class="text-2xl font-bold text-gray-900 mt-1">Conversation #{{ conversation.pk }}</h2>
+    <p class="text-sm text-gray-500 mt-1">
+        Client: <strong>{{ conversation.client.username }}</strong> &middot;
+        Artisan: <strong>{{ conversation.artisan.username }}</strong>
+        {% if conversation.admin %} &middot; Admin: <strong>{{ conversation.admin.username }}</strong>{% endif %}
+    </p>
+</div>
+
+<!-- Chat Messages -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+    <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <span class="font-semibold text-gray-900 flex items-center gap-2"><i class="bi bi-chat-dots text-gray-400"></i>Messages</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{{ conversation.get_conversation_type_display }}</span>
+    </div>
+    <div id="chat-messages" class="p-5 space-y-3 max-h-[500px] overflow-y-auto">
+        {% for msg in messages_list %}
+        <div class="{% if msg.is_admin_message %}text-right{% elif msg.sender == conversation.client %}text-left{% else %}text-left{% endif %}">
+            <div class="inline-block max-w-[70%] px-4 py-2.5 rounded-2xl
+                {% if msg.is_admin_message %}bg-brand text-white rounded-br-sm
+                {% elif msg.sender == conversation.client %}bg-gray-100 text-gray-800 rounded-bl-sm
+                {% else %}bg-blue-100 text-blue-800 rounded-bl-sm{% endif %}">
+                <div class="text-xs {% if msg.is_admin_message %}text-white/70{% else %}text-gray-500{% endif %} mb-0.5">
+                    {% if msg.is_admin_message %}<i class="bi bi-shield-check mr-1"></i>Admin · {% endif %}{{ msg.sender.username }}
+                </div>
+                <div class="text-sm">{{ msg.message }}</div>
+                <div class="text-xs {% if msg.is_admin_message %}text-white/60{% else %}text-gray-400{% endif %} mt-0.5">{{ msg.timestamp|date:"h:i A" }}</div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-center text-gray-400 py-8">No messages yet</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Admin Message Input -->
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <form method="post" action="{% url 'admin_dashboard:admin_send_message' conversation.pk %}">
+        {% csrf_token %}
+        <div class="p-4 flex gap-2">
+            <input type="text" name="message" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none" placeholder="Type your message..." required autocomplete="off">
+            <button type="submit" class="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5">
+                <i class="bi bi-send"></i>Send
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

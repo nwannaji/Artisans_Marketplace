@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}Fix-It Admin{% endblock %}</title>
+    <!-- Tailwind CSS v4 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Bootstrap Icons (independent of Bootstrap CSS) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfGtoA0efE6RRo4hLwo7E8kD5XjqG1iX5rKz3Y0u2l7L3N6c5eS5Ce5fFCL3M" crossorigin="anonymous"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <!-- App JS -->
+    {% load static %}
+    <script src="{% static 'admin_dashboard/js/app.js' %}"></script>
+    <style type="text/tailwindcss">
+        @theme {
+            --color-brand: #008751;
+            --color-brand-light: #00a86b;
+            --color-brand-dark: #006b3f;
+            --color-accent: #f4a261;
+            --color-surface: #f8fafc;
+        }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-request .htmx-hide-on-request { display: none; }
+        .nav-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm; }
+        .nav-link.active { @apply bg-white/15 text-white font-semibold; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-surface text-gray-800 font-sans h-full" x-data="{ sidebarOpen: false }">
+
+{% if not hide_sidebar %}
+<!-- Mobile overlay -->
+<div x-show="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/40 z-40 lg:hidden transition-opacity" x-transition.opacity></div>
+
+<!-- Sidebar -->
+<aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+       class="fixed top-0 left-0 bottom-0 w-64 bg-gradient-to-b from-brand-dark to-brand z-50 transition-transform duration-300 lg:translate-x-0 sidebar-scroll overflow-y-auto flex flex-col">
+    <!-- Brand -->
+    <div class="flex items-center gap-2.5 px-5 py-4 border-b border-white/15 shrink-0">
+        <i class="bi bi-gear-wide-connected text-xl text-white"></i>
+        <div>
+            <h5 class="text-white font-bold leading-tight text-base">Fix-It Admin</h5>
+            <small class="text-white/50 text-xs">Artisan Services Dashboard</small>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="mt-2 px-3 space-y-0.5 flex-1">
+        <a href="{% url 'admin_dashboard:overview' %}"
+           class="nav-link {% block nav_dashboard %}{% endblock %}">
+            <i class="bi bi-speedometer2 w-5 text-center"></i>Dashboard
+        </a>
+        <a href="{% url 'admin_dashboard:user_list' %}"
+           class="nav-link {% block nav_users %}{% endblock %}">
+            <i class="bi bi-people w-5 text-center"></i>Users
+        </a>
+        <a href="{% url 'admin_dashboard:artisan_list' %}"
+           class="nav-link {% block nav_artisans %}{% endblock %}">
+            <i class="bi bi-person-badge w-5 text-center"></i>Artisans
+        </a>
+        <a href="{% url 'admin_dashboard:job_list' %}"
+           class="nav-link {% block nav_jobs %}{% endblock %}">
+            <i class="bi bi-briefcase w-5 text-center"></i>Jobs
+        </a>
+        <a href="{% url 'admin_dashboard:escrow_list' %}"
+           class="nav-link {% block nav_escrow %}{% endblock %}">
+            <i class="bi bi-shield-check w-5 text-center"></i>Escrow
+        </a>
+        <a href="{% url 'admin_dashboard:dispute_list' %}"
+           class="nav-link {% block nav_disputes %}{% endblock %}">
+            <i class="bi bi-exclamation-triangle w-5 text-center"></i>Disputes
+        </a>
+        <a href="{% url 'admin_dashboard:conversation_list' %}"
+           class="nav-link {% block nav_chats %}{% endblock %}">
+            <i class="bi bi-chat-dots w-5 text-center"></i>Chats
+        </a>
+        <a href="{% url 'admin_dashboard:commission_settings' %}"
+           class="nav-link {% block nav_settings %}{% endblock %}">
+            <i class="bi bi-sliders w-5 text-center"></i>Settings
+        </a>
+        <a href="{% url 'admin_dashboard:transaction_list' %}"
+           class="nav-link {% block nav_transactions %}{% endblock %}">
+            <i class="bi bi-cash-coin w-5 text-center"></i>Transactions
+        </a>
+
+        <div class="border-t border-white/15 my-3"></div>
+
+        <a href="{% url 'admin_dashboard:logout' %}"
+           class="nav-link">
+            <i class="bi bi-box-arrow-left w-5 text-center"></i>Logout
+        </a>
+    </nav>
+
+    <!-- Sidebar footer -->
+    <div class="px-5 py-3 border-t border-white/15 shrink-0">
+        <p class="text-white/40 text-xs">&copy; 2026 Fix-It Nigeria</p>
+    </div>
+</aside>
+{% endif %}
+
+<!-- Main content area -->
+<div class="{% if not hide_sidebar %}lg:ml-64{% endif %} min-h-full">
+    {% if not hide_sidebar %}
+    <!-- Top bar -->
+    <header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 shadow-sm">
+        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-1 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100">
+            <i class="bi bi-list text-xl"></i>
+        </button>
+        <span class="text-sm text-gray-500">
+            <i class="bi bi-person-circle mr-1"></i>{{ request.user.username }}
+            <span class="inline-flex items-center ml-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-brand/10 text-brand">{{ request.user.get_role_display }}</span>
+        </span>
+        <span class="ml-auto text-xs text-gray-400">
+            <i class="bi bi-clock mr-1"></i>{% now "d M Y, h:i A" %}
+        </span>
+    </header>
+    {% endif %}
+
+    <!-- Django messages -->
+    {% if messages %}
+    <div class="px-4 pt-4 space-y-2">
+        {% for message in messages %}
+        <div x-data="{ show: true }" x-show="show" x-transition
+             class="flex items-center gap-2 px-4 py-3 rounded-lg border text-sm
+            {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-800
+            {% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-800
+            {% elif message.tags == 'warning' %}bg-yellow-50 border-yellow-200 text-yellow-800
+            {% else %}bg-blue-50 border-blue-200 text-blue-800{% endif %}">
+            <i class="bi {% if message.tags == 'success' %}bi-check-circle-fill{% elif message.tags == 'error' %}bi-x-circle-fill{% elif message.tags == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+            <span class="flex-1">{{ message }}</span>
+            <button @click="show = false" class="opacity-50 hover:opacity-100"><i class="bi bi-x"></i></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Page content -->
+    <main class="p-4 lg:p-6">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<!-- CSRF token for HTMX (meta tag is in <head>) -->
+<script>
+    document.body.addEventListener('htmx:configRequest', (event) => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (csrfToken) {
+            event.detail.headers['X-CSRFToken'] = csrfToken.content;
+        }
+    });
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

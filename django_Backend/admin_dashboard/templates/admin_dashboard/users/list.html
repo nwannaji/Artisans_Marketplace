@@ -1,0 +1,89 @@
+{% extends "admin_dashboard/base.html" %}
+{% load naira %}
+
+{% block title %}Users — Fix-It Admin{% endblock %}
+{% block nav_users %}active{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">Users</h2>
+    <form method="get" class="flex flex-wrap gap-2">
+        <input type="text" name="search" value="{{ search }}" placeholder="Search by username or email..."
+               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none w-48">
+        <select name="role" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+            <option value="">All Roles</option>
+            {% for value, label in role_choices %}
+            <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <select name="is_active" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+            <option value="">All Status</option>
+            <option value="true" {% if active_filter == 'true' %}selected{% endif %}>Active</option>
+            <option value="false" {% if active_filter == 'false' %}selected{% endif %}>Inactive</option>
+        </select>
+        <button type="submit" class="px-4 py-2 bg-brand hover:bg-brand-dark text-white rounded-lg text-sm font-medium transition-colors">
+            <i class="bi bi-search"></i>
+        </button>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 text-left">
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Username</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Joined</th>
+                    <th class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for user in page_obj %}
+                <tr class="hover:bg-gray-50/50">
+                    <td class="px-5 py-3 text-gray-500">{{ user.pk }}</td>
+                    <td class="px-5 py-3"><a href="{% url 'admin_dashboard:user_detail' user.pk %}" class="text-brand hover:underline font-medium">{{ user.username }}</a></td>
+                    <td class="px-5 py-3 text-gray-600">{{ user.email }}</td>
+                    <td class="px-5 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-{{ user.role|status_color }}/10 text-{{ user.role|status_color }}-700">
+                            {{ user.get_role_display }}
+                        </span>
+                    </td>
+                    <td class="px-5 py-3">
+                        {% if user.is_active %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-3 text-gray-500">{{ user.date_joined|date:"M d, Y" }}</td>
+                    <td class="px-5 py-3">
+                        <a href="{% url 'admin_dashboard:user_detail' user.pk %}" class="text-brand hover:underline text-sm">
+                            <i class="bi bi-eye mr-1"></i>View
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-5 py-10 text-center text-gray-400">No users found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if page_obj.has_other_pages %}
+    <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+        <span class="text-sm text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div class="flex gap-1">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&search={{ search }}&role={{ role_filter }}&is_active={{ active_filter }}" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&search={{ search }}&role={{ role_filter }}&is_active={{ active_filter }}" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

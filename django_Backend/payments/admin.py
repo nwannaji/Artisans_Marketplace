@@ -1,6 +1,6 @@
-from datetime import timezone
+from django.utils import timezone
 from django.contrib import admin
-from .models import AppSettings, Wallet, Transaction
+from .models import AppSettings, Wallet, Transaction, BankAccount
 from django.utils.html import format_html
 
 class TransactionInline(admin.TabularInline):
@@ -17,7 +17,7 @@ class WalletAdmin(admin.ModelAdmin):
     inlines = [TransactionInline]
     
     def balance_display(self, obj):
-        return f"${obj.balance}"
+        return f"₦{obj.balance}"
     balance_display.short_description = 'Balance'
     
     def transaction_count(self, obj):
@@ -32,7 +32,7 @@ class TransactionAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     
     def amount_display(self, obj):
-        return f"${obj.amount}"
+        return f"₦{obj.amount}"
     amount_display.short_description = 'Amount'
     
     def type_badge(self, obj):
@@ -42,6 +42,8 @@ class TransactionAdmin(admin.ModelAdmin):
             'payment': 'purple',
             'commission': 'orange',
             'refund': 'red',
+            'escrow_hold': 'teal',
+            'escrow_release': 'lime',
         }
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 10px;">{}</span>',
@@ -109,4 +111,16 @@ class AppSettingsAdmin(admin.ModelAdmin):
 admin.site.register(Wallet, WalletAdmin)
 admin.site.register(Transaction, TransactionAdmin)
 # admin.site.register(Transaction, WithdrawalRequestAdmin)
+class BankAccountAdmin(admin.ModelAdmin):
+    list_display = ('user', 'account_name', 'bank_code', 'account_number_display', 'is_verified', 'is_default', 'created_at')
+    list_filter = ('is_verified', 'is_default', 'bank_code')
+    search_fields = ('user__username', 'user__email', 'account_name', 'account_number')
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('user',)
+
+    def account_number_display(self, obj):
+        return f"****{obj.account_number[-4:]}"
+    account_number_display.short_description = 'Account #'
+
+admin.site.register(BankAccount, BankAccountAdmin)
 admin.site.register(AppSettings, AppSettingsAdmin)

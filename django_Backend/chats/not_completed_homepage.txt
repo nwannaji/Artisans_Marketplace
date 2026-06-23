@@ -1,0 +1,140 @@
+import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:ichat_app/allConstants/constants.dart';
+import 'package:ichat_app/allProviders/auth_provider.dart';
+import 'package:ichat_app/allScreens/login_page.dart';
+import 'package:ichat_app/allScreens/settings_page.dart';
+import 'package:provider/provider.dart';
+
+import '../allModels/popup_choices.dart';
+import '../main.dart';
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final GoogleSignIn googleSignIn = GoogleSignIn();
+  final ScrollController listScrollController = ScrollController();
+  int _limit = 20;
+  final int _limitIncrement = 20;
+  final String _textSerach = '';
+  bool isLoading = false;
+  late String currentUserId;
+  late AuthenticationProvider authProvider;
+
+  List<PopupChoices> choices = <PopupChoices>[
+    PopupChoices(title: 'Settings', icon: Icons.settings),
+    PopupChoices(title: 'Sign Out', icon: Icons.exit_to_app),
+  ];
+
+  Future<void> handleSignOut() async {
+    setState(() {
+      isLoading = true;
+    });
+    await authProvider.handleSignOut();
+    setState(() {
+      isLoading = false;
+    });
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginPage()),
+      );
+    }
+  }
+
+  void scrollListener() {
+    if (listScrollController.offset >=
+            listScrollController.position.maxScrollExtent &&
+        !listScrollController.position.outOfRange) {
+      setState(() {
+        _limit += _limitIncrement;
+      });
+    }
+  }
+
+  void onItemMenuPress(PopupChoices choice) {
+    if (choice.title == "Sign Out") {
+      handleSignOut();
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => SettingsPage()),
+      );
+    }
+  }
+
+  Widget buildPopupMenu() {
+    return PopupMenuButton<PopupChoices>(
+      icon: Icon(Icons.more_vert, color: Colors.grey),
+      onSelected: onItemMenuPress,
+      itemBuilder: (BuildContext context) {
+        return choices.map((PopupChoices choice) {
+          return PopupMenuItem<PopupChoices>(
+            value: choice,
+            child: Row(
+              children: <Widget>[
+                Icon(choice.icon, color: ColorConstants.primaryColor),
+                Container(width: 10),
+                Text(
+                  choice.title,
+                  style: TextStyle(color: ColorConstants.primaryColor),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    authProvider = context.read<AuthenticationProvider>();
+    // homeProvider = context.read<HomeProvider>();
+    if (authProvider.getUserFirebaseId()?.isNotEmpty == true) {
+      currentUserId = authProvider.getUserFirebaseId()!;
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginPage()),
+        (Route<dynamic> route) => false,
+      );
+    }
+    listScrollController.addListener(scrollListener);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: isWhite ? Colors.white : Colors.black,
+      appBar: AppBar(
+        backgroundColor: isWhite ? Colors.white : Colors.black,
+        leading: IconButton(
+          icon: Switch(
+            value: isWhite,
+            onChanged: (value) {
+              setState(() {
+                isWhite = value;
+              });
+            },
+            activeTrackColor: Colors.grey,
+            activeColor: Colors.white,
+            inactiveTrackColor: Colors.grey,
+            inactiveThumbColor: Colors.black45,
+          ),
+          onPressed: () => "",
+        ),
+        actions: <Widget>[buildPopupMenu()],
+      ),
+      body:
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : const Center(child: Text("Coming Soon...")),
+    );
+  }
+}

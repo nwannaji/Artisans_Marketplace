@@ -1,49 +1,177 @@
-from rest_framework import generics, permissions,exceptions
-from .models import Chat
-from accounts.models import User
-from .serializers import ChatSerializer
+from rest_framework import generics, permissions, exceptions, status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.db.models import Q
+from .models import Conversation, Chat
+from accounts.models import User
+from accounts.permissions import IsAdminRole
+from .serializers import (
+    ChatSerializer, ConversationSerializer, ConversationCreateSerializer
+)
+
+
+class ConversationListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ConversationCreateSerializer
+        return ConversationSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == User.Role.ADMIN:
+            return Conversation.objects.all()
+        return Conversation.objects.filter(Q(client=user) | Q(artisan=user))
+
+    def perform_create(self, serializer):
+        # SECURITY: Always set client to the requesting user — never trust client input
+        serializer.save(conversation_type='client_artisan', client=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        """Override to return the full ConversationSerializer after creation."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        # Return full conversation data instead of just the create fields
+        output_serializer = ConversationSerializer(serializer.instance)
+        headers = self.get_success_headers(output_serializer.data)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class ConversationDetailAPIView(generics.RetrieveAPIView):
+    queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        conversation = super().get_object()
+        user = self.request.user
+        # Allow participants and admins to view
+        if user.role != User.Role.ADMIN and user not in [conversation.client, conversation.artisan]:
+            raise exceptions.PermissionDenied("You are not a participant in this conversation.")
+        return conversation
+
 
 class ChatListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = ChatSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
+        conversation_id = self.kwargs.get('conversation_id')
         user = self.request.user
-        return Chat.objects.filter(sender=user) | Chat.objects.filter(receiver=user)
+        conversation = Conversation.objects.get(pk=conversation_id)
+
+        # Admin can see all messages in any conversation
+        if user.role == User.Role.ADMIN:
+            return Chat.objects.filter(conversation=conversation)
+
+        # Non-admin can only see messages in their conversations
+        if user not in [conversation.client, conversation.artisan]:
+            raise exceptions.PermissionDenied("You are not a participant in this conversation.")
+        return Chat.objects.filter(conversation=conversation)
+
+    def list(self, request, *args, **kwargs):
+        """Override list to also mark messages as read for the requesting user."""
+        response = super().list(request, *args, **kwargs)
+        # Mark all unread messages sent by the OTHER user as read
+        conversation_id = self.kwargs.get('conversation_id')
+        if conversation_id and request.user.is_authenticated:
+            Chat.objects.filter(
+                conversation_id=conversation_id,
+                is_read=False,
+            ).exclude(sender=request.user).update(is_read=True)
+        return response
 
     def perform_create(self, serializer):
         user = self.request.user
-        receiver = serializer.validated_data['receiver']
-        
-        # Check if the receiver exists
-        if not User.objects.filter(id=receiver.id).exists():
-            raise exceptions.ValidationError("Receiver does not exist.")
+        conversation_id = self.kwargs.get('conversation_id')
+        conversation = Conversation.objects.get(pk=conversation_id)
 
-        # Validate that customers can only send messages to artisans
-        if user.role == User.Role.CUSTOMER:
-            if receiver.role != User.Role.ARTISAN:
-                raise exceptions.ValidationError("Customers can only send messages to artisans.")
-        
-        # Validate that artisans can only send messages to customers
-        if user.role == User.Role.ARTISAN:
-            if receiver.role != User.Role.CUSTOMER:
-                raise exceptions.ValidationError("Artisans can only send messages to customers.")
-        
-        # If the validations pass, set sender and save the message
-        serializer.save(sender=user)
+        # Verify user is a participant or admin
+        if user.role != User.Role.ADMIN and user not in [conversation.client, conversation.artisan]:
+            raise exceptions.PermissionDenied("You are not a participant in this conversation.")
+
+        is_admin = user.role == User.Role.ADMIN
+
+        # Determine message type based on content
+        audio_file = self.request.data.get('audio_file')
+        latitude = self.request.data.get('latitude')
+
+        if audio_file:
+            message_type = 'voice_note'
+        elif latitude is not None:
+            message_type = 'location'
+        else:
+            message_type = 'text'
+
+        # Parse audio_duration from request data
+        audio_duration = None
+        duration_str = self.request.data.get('audio_duration')
+        if duration_str:
+            try:
+                audio_duration = float(duration_str)
+            except (ValueError, TypeError):
+                pass
+
+        # Parse location data
+        lat = None
+        lng = None
+        location_label = ''
+        if message_type == 'location':
+            lat_str = self.request.data.get('latitude')
+            lng_str = self.request.data.get('longitude')
+            location_label = self.request.data.get('location_label', '')
+            if lat_str:
+                try:
+                    lat = float(lat_str)
+                except (ValueError, TypeError):
+                    pass
+            if lng_str:
+                try:
+                    lng = float(lng_str)
+                except (ValueError, TypeError):
+                    pass
+
+        serializer.save(
+            sender=user,
+            conversation=conversation,
+            is_admin_message=is_admin,
+            message_type=message_type,
+            audio_duration=audio_duration,
+            latitude=lat,
+            longitude=lng,
+            location_label=location_label,
+        )
 
 
-class ChatThreadAPIView(generics.ListAPIView):
-    serializer_class = ChatSerializer
-    permission_classes = [permissions.IsAuthenticated]
+class AdminConversationListAPIView(generics.ListAPIView):
+    """Admin can view all conversations."""
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAdminRole]
 
     def get_queryset(self):
-        user = self.request.user
-        other_user_id = self.kwargs.get('user_id')  # id of the person you're chatting with
+        return Conversation.objects.all()
 
-        return Chat.objects.filter(
-            Q(sender=user, receiver__id=other_user_id) |
-            Q(sender__id=other_user_id, receiver=user)
-        ).order_by('timestamp')
 
+class AdminChatAPIView(generics.CreateAPIView):
+    """Admin can send messages in any conversation."""
+    serializer_class = ChatSerializer
+    permission_classes = [IsAdminRole]
+
+    def perform_create(self, serializer):
+        conversation_id = self.kwargs.get('conversation_id')
+        conversation = Conversation.objects.get(pk=conversation_id)
+
+        # If admin isn't already linked to this conversation, add them
+        if conversation.admin is None:
+            conversation.admin = self.request.user
+            conversation.save()
+
+        serializer.save(
+            sender=self.request.user,
+            conversation=conversation,
+            is_admin_message=True
+        )
