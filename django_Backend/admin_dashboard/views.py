@@ -17,7 +17,7 @@ from .forms import (
 )
 from accounts.models import User, ArtisanProfile, CustomerProfile
 from bookings.models import Job
-from payments.models import Wallet, Transaction, AppSettings, BankAccount
+from payments.models import Wallet, Transaction, AppSettings, BankAccount, PandascrowEscrow
 from payments.utils import process_escrow_release, process_escrow_refund
 from chats.models import Conversation, Chat
 from disputes.models import Dispute
@@ -394,7 +394,7 @@ def escrow_list(request):
     """List all jobs with held escrow."""
     qs = Job.objects.filter(
         escrow_held_amount__gt=0
-    ).select_related('customer', 'artisan__user').order_by('-created_at')
+    ).select_related('customer', 'artisan__user', 'pandascrow_escrow').order_by('-created_at')
 
     paginator = Paginator(qs, 25)
     page_number = request.GET.get('page', 1)
@@ -407,12 +407,14 @@ def escrow_list(request):
 @admin_required
 def escrow_detail(request, pk):
     """Escrow detail page with release/refund actions."""
-    job = get_object_or_404(Job, pk=pk)
+    job = get_object_or_404(Job.objects.select_related('pandascrow_escrow'), pk=pk)
     transactions = Transaction.objects.filter(job=job).select_related('wallet__user').order_by('-created_at')
 
+    pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
     context = {
         'job': job,
         'transactions': transactions,
+        'pandascrow_escrow': pandascrow_escrow,
     }
     return render(request, 'admin_dashboard/escrow/detail.html', context)
 
@@ -420,7 +422,7 @@ def escrow_detail(request, pk):
 @admin_required
 @require_POST
 def escrow_release(request, pk):
-    """Release escrow to artisan minus commission."""
+    """Release escrow to artisan. Routes to Pandascrow or internal based on escrow type."""
     with db_transaction.atomic():
         job = Job.objects.select_for_update().get(pk=pk)
         if not job.escrow_held_amount or job.escrow_held_amount <= 0:
@@ -433,23 +435,40 @@ def escrow_release(request, pk):
             messages.error(request, 'Job must be IN_PROGRESS or COMPLETED to release escrow.')
             return redirect('admin_dashboard:escrow_detail', pk=pk)
 
-        artisan_payout, commission_amount = process_escrow_release(job)
-        if job.status != Job.Status.COMPLETED:
-            job.status = Job.Status.COMPLETED
-            job.save(update_fields=['status', 'updated_at'])
+        pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
 
-    messages.success(request, f'Escrow released. Artisan payout: ₦{artisan_payout}, Commission: ₦{commission_amount}')
+        if pandascrow_escrow:
+            # Release via Pandascrow
+            from payments.utils import pandascrow_complete_escrow, PandascrowAPIError
+            try:
+                pandascrow_complete_escrow(escrow_id=pandascrow_escrow.escrow_id)
+                pandascrow_escrow.status = PandascrowEscrow.Status.COMPLETED
+                pandascrow_escrow.save(update_fields=['status', 'updated_at'])
+                job.escrow_held_amount = Decimal('0.00')
+                if job.status != Job.Status.COMPLETED:
+                    job.status = Job.Status.COMPLETED
+                    job.save(update_fields=['status', 'escrow_held_amount', 'updated_at'])
+                else:
+                    job.save(update_fields=['escrow_held_amount', 'updated_at'])
+                messages.success(request, f'Escrow released via Pandascrow. Escrow ID: {pandascrow_escrow.escrow_id}')
+            except PandascrowAPIError as e:
+                messages.error(request, f'Failed to release escrow via Pandascrow: {e}')
+                return redirect('admin_dashboard:escrow_detail', pk=pk)
+        else:
+            # Legacy internal wallet release
+            artisan_payout, commission_amount = process_escrow_release(job)
+            if job.status != Job.Status.COMPLETED:
+                job.status = Job.Status.COMPLETED
+                job.save(update_fields=['status', 'updated_at'])
+            messages.success(request, f'Escrow released. Artisan payout: ₦{artisan_payout}, Commission: ₦{commission_amount}')
+
     return redirect('admin_dashboard:escrow_detail', pk=pk)
 
 
 @admin_required
 @require_POST
 def escrow_refund(request, pk):
-    """Refund escrow to customer (full or partial).
-
-    Validation is done inside the atomic block after acquiring the row lock
-    to prevent TOCTOU issues.
-    """
+    """Refund escrow to customer. Routes to Pandascrow cancel or internal refund."""
     form = EscrowRefundForm(request.POST)
 
     with db_transaction.atomic():
@@ -457,25 +476,41 @@ def escrow_refund(request, pk):
 
         if not job.escrow_held_amount or job.escrow_held_amount <= 0:
             messages.error(request, 'No escrow held for this job.')
-            # Must redirect outside the atomic block — raise an exception
-            # to trigger rollback, then redirect
             db_transaction.set_rollback(True)
             return redirect('admin_dashboard:escrow_detail', pk=pk)
 
-        if form.is_valid() and form.cleaned_data.get('full_refund'):
-            refund_amount = job.escrow_held_amount
-        elif form.is_valid() and form.cleaned_data.get('refund_amount'):
-            refund_amount = form.cleaned_data['refund_amount']
-            if refund_amount > job.escrow_held_amount:
-                messages.error(request, f'Refund amount cannot exceed ₦{job.escrow_held_amount}')
-                db_transaction.set_rollback(True)
+        pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
+
+        if pandascrow_escrow:
+            # Refund via Pandascrow cancel
+            from payments.utils import pandascrow_cancel_escrow, PandascrowAPIError
+            try:
+                pandascrow_cancel_escrow(escrow_id=pandascrow_escrow.escrow_id)
+                pandascrow_escrow.status = PandascrowEscrow.Status.REFUNDED
+                pandascrow_escrow.save(update_fields=['status', 'updated_at'])
+                refund_amount = job.escrow_held_amount
+                job.escrow_held_amount = Decimal('0.00')
+                job.save(update_fields=['escrow_held_amount', 'updated_at'])
+                messages.success(request, f'₦{refund_amount} refunded via Pandascrow.')
+            except PandascrowAPIError as e:
+                messages.error(request, f'Failed to refund via Pandascrow: {e}')
                 return redirect('admin_dashboard:escrow_detail', pk=pk)
         else:
-            refund_amount = job.escrow_held_amount  # Default: full refund
+            # Legacy internal wallet refund
+            if form.is_valid() and form.cleaned_data.get('full_refund'):
+                refund_amount = job.escrow_held_amount
+            elif form.is_valid() and form.cleaned_data.get('refund_amount'):
+                refund_amount = form.cleaned_data['refund_amount']
+                if refund_amount > job.escrow_held_amount:
+                    messages.error(request, f'Refund amount cannot exceed ₦{job.escrow_held_amount}')
+                    db_transaction.set_rollback(True)
+                    return redirect('admin_dashboard:escrow_detail', pk=pk)
+            else:
+                refund_amount = job.escrow_held_amount
 
-        process_escrow_refund(job, refund_amount)
+            process_escrow_refund(job, refund_amount)
+            messages.success(request, f'₦{refund_amount} refunded to customer.')
 
-    messages.success(request, f'₦{refund_amount} refunded to customer.')
     return redirect('admin_dashboard:escrow_detail', pk=pk)
 
 
@@ -671,10 +706,28 @@ def commission_settings(request):
         form = CommissionSettingsForm(initial={'commission_rate': current_rate_pct})
 
     # Commission revenue stats
-    total_commission = Transaction.objects.filter(
+    # Total from explicit COMMISSION transactions (escrow-released jobs)
+    recorded_commission = Transaction.objects.filter(
         transaction_type=Transaction.Type.COMMISSION,
         status=Transaction.Status.COMPLETED
     ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    # Backfill: completed jobs that bypassed the escrow flow (no COMMISSION transaction)
+    # and have an agreed_price but no escrow_held_amount
+    jobs_with_commission = Transaction.objects.filter(
+        transaction_type=Transaction.Type.COMMISSION,
+        status=Transaction.Status.COMPLETED,
+    ).values_list('job_id', flat=True)
+
+    backfill_commission = Decimal('0')
+    for job in Job.objects.filter(
+        status=Job.Status.COMPLETED,
+        escrow_held_amount=0,
+        agreed_price__gt=0,
+    ).exclude(id__in=jobs_with_commission):
+        backfill_commission += (job.agreed_price or Decimal('0')) * current_rate_decimal
+
+    total_commission = recorded_commission + backfill_commission
 
     completed_jobs = Job.objects.filter(status=Job.Status.COMPLETED).count()
 

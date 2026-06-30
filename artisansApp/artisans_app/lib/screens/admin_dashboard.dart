@@ -1,9 +1,11 @@
 import 'package:artisans_app/models/job.dart';
-import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/models/artisan.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/drag_handle.dart';
 import 'package:flutter/material.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -178,13 +180,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Handle
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
+              const DragHandle(),
               // Header
               Row(
                 children: [
@@ -220,18 +216,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildStatusChip(
-                    icon: artisan.userIsActive ? Icons.check_circle : Icons.cancel,
+                  StatusBadge.outlined(
                     label: artisan.userIsActive ? 'Active' : 'Inactive',
                     color: artisan.userIsActive ? Colors.green : Colors.red,
                   ),
-                  _buildStatusChip(
-                    icon: artisan.isVerified ? Icons.verified_user : Icons.gpp_bad,
+                  StatusBadge.outlined(
                     label: artisan.isVerified ? 'Verified' : 'Unverified',
                     color: artisan.isVerified ? Colors.blue : Colors.orange,
                   ),
-                  _buildStatusChip(
-                    icon: Icons.circle,
+                  StatusBadge.outlined(
                     label: artisan.availabilityLabel,
                     color: artisan.isAvailableNow ? Colors.green : (artisan.isEngaged ? Colors.blue : (artisan.isAvailable == 'BUSY' ? Colors.orange : Colors.grey)),
                   ),
@@ -358,25 +351,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip({required IconData icon, required String label, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
-        ],
       ),
     );
   }

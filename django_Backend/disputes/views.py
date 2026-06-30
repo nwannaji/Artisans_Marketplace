@@ -2,10 +2,13 @@ import logging
 from decimal import Decimal, InvalidOperation
 
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.db.models import Q
 from django.utils import timezone
-from .models import Dispute
-from .serializers import DisputeSerializer
+from .models import Dispute, EvidenceFile
+from .serializers import DisputeSerializer, EvidenceFileSerializer
 from accounts.models import User
 from accounts.permissions import IsAdminRole
 from bookings.models import Job
@@ -42,17 +45,26 @@ class DisputeListCreateAPIView(generics.ListCreateAPIView):
 
 
 class DisputeRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView):
-    queryset = Dispute.objects.all()
     serializer_class = DisputeSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """SECURITY: Only allow users to see disputes for jobs they're involved in.
+        Admins can see all disputes."""
+        user = self.request.user
+        if user.role == User.Role.ADMIN:
+            return Dispute.objects.select_related('job__customer', 'job__artisan__user')
+        return Dispute.objects.filter(
+            Q(job__customer=user) | Q(job__artisan__user=user)
+        )
 
     def perform_update(self, serializer):
         user = self.request.user
         dispute = self.get_object()
 
-        # Only allow the dispute status to be updated by an admin or the user who raised the dispute
-        if user != dispute.job.customer and (not dispute.job.artisan or dispute.job.artisan.user != user):
-            if not user.is_staff:
+        # Only allow the dispute to be updated by an admin or the user who raised the dispute
+        if user.role != User.Role.ADMIN:
+            if user != dispute.job.customer and (not dispute.job.artisan or dispute.job.artisan.user != user):
                 raise permissions.exceptions.PermissionDenied("You are not authorized to update this dispute.")
 
         serializer.save()
@@ -117,3 +129,66 @@ class DisputeResolveAPIView(generics.UpdateAPIView):
             )
 
         return Response(DisputeSerializer(dispute).data)
+
+
+class EvidenceFileListCreateAPIView(generics.ListCreateAPIView):
+    """List or upload evidence files for a dispute.
+
+    GET  /api/disputes/evidence/<dispute_pk>/  — list evidence files
+    POST /api/disputes/evidence/<dispute_pk>/  — upload an evidence file (multipart)
+    """
+    serializer_class = EvidenceFileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        dispute_pk = self.kwargs.get('dispute_pk')
+        return EvidenceFile.objects.filter(dispute_id=dispute_pk).select_related('uploaded_by')
+
+    def perform_create(self, serializer):
+        dispute_pk = self.kwargs.get('dispute_pk')
+        # Verify the user is a participant in the dispute
+        try:
+            dispute = Dispute.objects.get(pk=dispute_pk)
+        except Dispute.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Dispute not found.")
+
+        user = self.request.user
+        if user.role != User.Role.ADMIN and user != dispute.job.customer and (not dispute.job.artisan or dispute.job.artisan.user != user):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You are not a participant in this dispute.")
+
+        # Store the file's content type
+        file_obj = serializer.validated_data.get('file')
+        file_type = ''
+        if file_obj:
+            file_type = getattr(file_obj, 'content_type', '') or ''
+
+        serializer.save(
+            uploaded_by=self.request.user,
+            dispute_id=dispute_pk,
+            file_type=file_type,
+        )
+
+
+class EvidenceFileDeleteAPIView(generics.DestroyAPIView):
+    """Delete an evidence file. Only the uploader or an admin can delete."""
+    serializer_class = EvidenceFileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return EvidenceFile.objects.all()
+
+    def perform_destroy(self, instance):
+        # Only the uploader or admin can delete
+        if self.request.user.role != User.Role.ADMIN and instance.uploaded_by != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own evidence files.")
+        # Delete the actual file from storage
+        if instance.file:
+            try:
+                instance.file.delete(save=False)
+            except Exception:
+                logger.warning("Failed to delete evidence file %s", instance.file.name)
+        instance.delete()

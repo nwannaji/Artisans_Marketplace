@@ -31,10 +31,33 @@ class PaymentViewModel extends BaseViewModel {
     }
   }
 
-  Future<bool> fundEscrow(int jobId, {double? amount}) async {
+  Future<Map<String, dynamic>?> fundEscrow(int jobId, {double? amount}) async {
     try {
-      await _paymentService.fundEscrow(jobId, amount: amount);
-      // Refresh wallet after funding
+      final result = await _paymentService.fundEscrow(jobId, amount: amount);
+      // Refresh wallet after funding (for internal escrow, wallet is debited)
+      await loadWallet();
+      return result;
+    } catch (e) {
+      setError(e.toString());
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> releaseEscrow(int jobId) async {
+    try {
+      final result = await _paymentService.releaseEscrow(jobId);
+      // Refresh wallet after release
+      await loadWallet();
+      return result;
+    } catch (e) {
+      setError(e.toString());
+      return null;
+    }
+  }
+
+  Future<bool> releaseEscrowWithOtp(int jobId, String otp) async {
+    try {
+      await _paymentService.submitEscrowReleaseOtp(jobId, otp);
       await loadWallet();
       return true;
     } catch (e) {
@@ -43,15 +66,11 @@ class PaymentViewModel extends BaseViewModel {
     }
   }
 
-  Future<bool> releaseEscrow(int jobId) async {
+  Future<Map<String, dynamic>?> getEscrowStatus(int jobId) async {
     try {
-      await _paymentService.releaseEscrow(jobId);
-      // Refresh wallet after release
-      await loadWallet();
-      return true;
+      return await _paymentService.getEscrowStatus(jobId);
     } catch (e) {
-      setError(e.toString());
-      return false;
+      return null;
     }
   }
 

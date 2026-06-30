@@ -85,8 +85,19 @@ class AuthApiService {
 
   // --- Logout ---
 
-  /// Clear locally stored tokens and user info.
+  /// Logout from the server (blacklist the refresh token) and clear local tokens.
+  /// If the server call fails (e.g. token already expired), still clear local tokens.
   Future<void> logout() async {
+    try {
+      final refreshToken = await _tokenService.getRefreshToken();
+      if (refreshToken != null) {
+        await _apiClient.post('/api/auth/logout/', body: {
+          'refresh': refreshToken,
+        });
+      }
+    } catch (_) {
+      // Server logout failed — still clear local tokens
+    }
     await _tokenService.clearTokens();
   }
 

@@ -1,5 +1,6 @@
 import math
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
 from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
@@ -8,6 +9,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from accounts.models import User, ArtisanProfile
 from accounts.serializers import ArtisanProfileSerializer, ArtisanAdminProfileSerializer
 from .filters import ArtisanFilter
+from .models_portfolio import PortfolioImage
+from .serializers import PortfolioImageSerializer
 
 
 class ArtisanProfileCreateAPIView(generics.CreateAPIView):
@@ -56,7 +59,52 @@ class ArtisanListAPIView(generics.ListAPIView):
         else:
             qs = qs.filter(user__is_active=True)
 
+        # Exclude artisans with unset/default (0,0) coordinates so distance
+        # computation is meaningful when lat/lng params are provided.
+        if self.request.query_params.get('lat') and self.request.query_params.get('lng'):
+            qs = qs.exclude(latitude=0, longitude=0)
+
         return qs
+
+    def list(self, request, *args, **kwargs):
+        """Override list to inject distance_km when lat/lng query params are provided."""
+        response = super().list(request, *args, **kwargs)
+
+        # If the client sends lat & lng, compute and attach distance_km to each result
+        try:
+            user_lat = float(request.query_params.get('lat'))
+            user_lng = float(request.query_params.get('lng'))
+        except (TypeError, ValueError):
+            return response  # no valid coords → return results as-is
+
+        # DRF paginated responses use {'results': [...]}, unpaginated are a plain list
+        items = response.data.get('results', response.data) if isinstance(response.data, dict) else response.data
+        for item in items:
+            artisan_lat = item.get('latitude')
+            artisan_lng = item.get('longitude')
+            if artisan_lat is not None and artisan_lng is not None:
+                try:
+                    distance = self._haversine_km(
+                        user_lat, user_lng,
+                        float(artisan_lat), float(artisan_lng),
+                    )
+                    item['distance_km'] = round(distance, 2)
+                except (TypeError, ValueError):
+                    pass
+
+        return response
+
+    @staticmethod
+    def _haversine_km(lat1, lng1, lat2, lng2):
+        """Haversine formula returning distance in kilometres."""
+        R = 6371.0
+        d_lat = math.radians(lat2 - lat1)
+        d_lng = math.radians(lng2 - lng1)
+        a = (math.sin(d_lat / 2) ** 2
+             + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
+             * math.sin(d_lng / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
 
 
 class ArtisanDetailAPIView(generics.RetrieveAPIView):
@@ -88,14 +136,14 @@ class ArtisanProfileUpdateAPIView(generics.UpdateAPIView):
 
     def get_serializer_class(self):
         # Admin users can set is_verified; regular users cannot
-        if self.request.user.is_staff:
+        if self.request.user.role == User.Role.ADMIN:
             return ArtisanAdminProfileSerializer
         return ArtisanProfileSerializer
 
     def get_object(self):
         from django.shortcuts import get_object_or_404
         # Admins can update any profile, but users can only update their own
-        if self.request.user.is_staff:
+        if self.request.user.role == User.Role.ADMIN:
             return get_object_or_404(ArtisanProfile, pk=self.kwargs['pk'])
         return get_object_or_404(ArtisanProfile, user=self.request.user)
 
@@ -140,6 +188,9 @@ class ArtisanNearbySearchAPIView(APIView):
             user__is_active=True,
             latitude__isnull=False,
             longitude__isnull=False,
+        ).exclude(
+            latitude=0, longitude=0,  # skip artisans with unset/default GPS coords
+        ).filter(
             latitude__gte=lat - lat_offset,
             latitude__lte=lat + lat_offset,
             longitude__gte=lng - lng_offset,
@@ -213,3 +264,50 @@ class ProfessionListAPIView(APIView):
             .order_by('profession')
         )
         return Response({'professions': list(professions)})
+
+
+class PortfolioImageListCreateAPIView(generics.ListCreateAPIView):
+    """
+    GET  /api/artisans/portfolio/       — list portfolio images for the requesting artisan (or all for admin)
+    POST /api/artisans/portfolio/       — upload a new portfolio image (artisans only)
+    """
+    serializer_class = PortfolioImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == User.Role.ADMIN:
+            return PortfolioImage.objects.select_related('artisan').all()
+        return PortfolioImage.objects.select_related('artisan').filter(artisan=user)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role != User.Role.ARTISAN:
+            raise ValidationError("Only artisan accounts can upload portfolio images.")
+        serializer.save(artisan=user)
+
+
+class PortfolioImageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/artisans/portfolio/<pk>/  — retrieve a specific portfolio image
+    PATCH  /api/artisans/portfolio/<pk>/  — update caption / order (owner or admin)
+    DELETE /api/artisans/portfolio/<pk>/  — delete a portfolio image (owner or admin)
+    """
+    serializer_class = PortfolioImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        return PortfolioImage.objects.select_related('artisan').all()
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        # Only the owning artisan or an admin may modify/delete
+        if request.method in ('PATCH', 'PUT', 'DELETE'):
+            if obj.artisan != request.user and request.user.role != User.Role.ADMIN:
+                raise ValidationError("You do not have permission to modify this portfolio image.")
+
+    def perform_update(self, serializer):
+        # On update, only caption and order should be mutable; artisan stays the same
+        serializer.save()

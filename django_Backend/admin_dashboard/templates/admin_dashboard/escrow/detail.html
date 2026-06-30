@@ -29,6 +29,16 @@
                 </div>
                 <div class="divide-y divide-gray-100">
                     <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Held</span><span class="text-lg font-bold text-purple-700">{{ job.escrow_held_amount|naira }}</span></div>
+                    {% if pandascrow_escrow %}
+                    <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Type</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">Pandascrow</span></div>
+                    <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Pandascrow ID</span><span class="font-mono text-sm">{{ pandascrow_escrow.escrow_id }}</span></div>
+                    <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Pandascrow Status</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-{{ pandascrow_escrow.status|lower }}-100 text-{{ pandascrow_escrow.status|lower }}-700">{{ pandascrow_escrow.get_status_display }}</span></div>
+                    {% if pandascrow_escrow.payment_url %}
+                    <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Payment URL</span><a href="{{ pandascrow_escrow.payment_url }}" target="_blank" class="text-sm text-brand hover:underline truncate max-w-[200px]">{{ pandascrow_escrow.payment_url }}</a></div>
+                    {% endif %}
+                    {% else %}
+                    <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Type</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">Internal Wallet</span></div>
+                    {% endif %}
                     <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Status</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-{{ job.status|status_color }}/10 text-{{ job.status|status_color }}-700">{{ job.get_status_display }}</span></div>
                     <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium">{{ job.created_at|date:"M d, Y h:i A" }}</span></div>
                 </div>

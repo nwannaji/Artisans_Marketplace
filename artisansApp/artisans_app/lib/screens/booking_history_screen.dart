@@ -2,8 +2,11 @@
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/dispute_screen.dart';
 import 'package:artisans_app/screens/escrow_payment_screen.dart';
-import 'package:artisans_app/screens/rating_selector.dart';
+import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/info_callout.dart';
 import 'package:flutter/material.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
@@ -54,16 +57,55 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     if (confirmed != true) return;
 
     try {
-      await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
+      final response = await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
       if (!mounted) return;
+
+      final escrowReleased = response['escrow_released'] == true;
+      final otpRequired = response['escrow_release_otp_required'] == true;
+
+      if (otpRequired) {
+        // Escrow requires OTP — navigate to EscrowPaymentScreen for OTP entry
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Job marked as completed! Payment requires OTP confirmation.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        final escrowResult = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EscrowPaymentScreen(
+              jobId: job.id,
+              agreedPrice: job.agreedPrice,
+              job: job,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        if (escrowResult == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment released to artisan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _loadJobs();
+        return;
+      }
 
       // Prompt for rating after completing the job
       final rated = await _showRatingDialog(job);
 
       if (!mounted) return;
+      String message = rated ? 'Job completed and rated!' : 'Job marked as completed!';
+      if (escrowReleased) {
+        message = rated ? 'Job completed, rated, and payment released!' : 'Job completed! Payment released to artisan.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(rated ? 'Job completed and rated!' : 'Job marked as completed!'),
+          content: Text(message),
           backgroundColor: Colors.green,
         ),
       );
@@ -71,7 +113,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to complete job: $e'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Failed to complete job. Please try again.'), backgroundColor: Colors.red),
       );
     }
   }
@@ -234,29 +276,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit rating: $e'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('Failed to submit rating. Please try again.'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Color _statusColor(JobStatus status) {
-    switch (status) {
-      case JobStatus.pending: return Colors.orange;
-      case JobStatus.adminApproved: return Colors.blue;
-      case JobStatus.accepted: return Colors.indigo;
-      case JobStatus.inProgress: return Colors.teal;
-      case JobStatus.awaitingReview: return Colors.amber;
-      case JobStatus.completed: return Colors.green;
-      case JobStatus.cancelled: return Colors.red;
-      case JobStatus.disputed: return Colors.pink;
-      case JobStatus.rejected: return Colors.grey;
-    }
-  }
-
   List<Job> get _filteredJobs {
     if (_filterStatus == 'ALL') return _jobs;
-    return _jobs.where((j) => j.status.name == _filterStatus.toLowerCase()).toList();
+    return _jobs.where((j) => j.status.toApiString() == _filterStatus).toList();
   }
 
   @override
@@ -280,6 +308,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               children: [
                 _buildFilterChip('ALL'),
                 _buildFilterChip('PENDING'),
+                _buildFilterChip('ADMIN_APPROVED'),
                 _buildFilterChip('ACCEPTED'),
                 _buildFilterChip('IN_PROGRESS'),
                 _buildFilterChip('AWAITING_REVIEW'),
@@ -357,13 +386,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(job.status),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(job.status.label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                StatusBadge.filled(
+                  label: job.status.label,
+                  color: AppColors.jobStatusColor(job.status),
                 ),
               ],
             ),
@@ -462,8 +487,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               ),
             ],
 
-            // Fund escrow — available when job is accepted/in-progress with no escrow yet
-            if ((job.status == JobStatus.accepted || job.status == JobStatus.inProgress) && job.escrowHeldAmount == 0) ...[
+            // Fund escrow — available when job is active and has no escrow yet
+            if ((job.status == JobStatus.pending ||
+                    job.status == JobStatus.adminApproved ||
+                    job.status == JobStatus.accepted ||
+                    job.status == JobStatus.inProgress) &&
+                job.escrowHeldAmount == 0) ...[
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 icon: const Icon(Icons.payment, size: 16),
@@ -480,26 +509,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             // Awaiting review — customer can approve (release escrow) or dispute
             if (job.status == JobStatus.awaitingReview) ...[
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.hourglass_top, size: 16, color: Colors.amber.shade800),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'The artisan has marked this job as done. Review and approve to release payment.',
-                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              InfoCallout.info(message: 'The artisan has marked this job as done. Review and approve to release payment.'),
               if (job.escrowHeldAmount > 0) ...[
                 const SizedBox(height: 8),
                 ElevatedButton.icon(

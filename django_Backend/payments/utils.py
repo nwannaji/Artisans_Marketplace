@@ -1,13 +1,17 @@
 import logging
+import time
 
-import requests
+import requests as requests_lib
 import uuid
+import hmac
+import hashlib
+import json
 from decimal import Decimal
 from django.conf import settings
 from django.db import transaction as db_transaction
 from bookings.models import Job
 from accounts.models import User
-from .models import Wallet, Transaction, AppSettings
+from .models import Wallet, Transaction, AppSettings, PandascrowEscrow
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,7 @@ def send_sms(phone_number, message):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests_lib.post(url, json=payload, timeout=10)
         result = response.json()
 
         if result.get('response_code') == 'SUCCESS':
@@ -202,7 +206,7 @@ def create_transfer_recipient(bank_code, account_number, account_name):
     }
 
     try:
-        response = requests.post(url, json=data, headers=headers, timeout=10)
+        response = requests_lib.post(url, json=data, headers=headers, timeout=10)
         result = response.json()
 
         if response.status_code == 201 and result.get('status'):
@@ -210,7 +214,7 @@ def create_transfer_recipient(bank_code, account_number, account_name):
         else:
             logger.error("Paystack create recipient failed: %s", result.get('message', 'Unknown error'))
             return None
-    except requests.RequestException as e:
+    except requests_lib.RequestException as e:
         logger.error("Paystack create recipient request failed: %s", e)
         return None
 
@@ -244,7 +248,7 @@ def initiate_paystack_transfer(amount, recipient_code, reference, reason=''):
     }
 
     try:
-        response = requests.post(url, json=data, headers=headers, timeout=15)
+        response = requests_lib.post(url, json=data, headers=headers, timeout=15)
         result = response.json()
 
         if response.status_code == 200 and result.get('status'):
@@ -260,7 +264,7 @@ def initiate_paystack_transfer(amount, recipient_code, reference, reason=''):
                 'success': False,
                 'error': error_msg,
             }
-    except requests.RequestException as e:
+    except requests_lib.RequestException as e:
         logger.error("Paystack transfer request failed: %s", e)
         return {
             'success': False,
@@ -280,7 +284,7 @@ def verify_paystack_transfer(transfer_code):
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests_lib.get(url, headers=headers, timeout=10)
         result = response.json()
 
         if response.status_code == 200 and result.get('status'):
@@ -296,7 +300,7 @@ def verify_paystack_transfer(transfer_code):
                 'success': False,
                 'error': result.get('message', 'Verification failed'),
             }
-    except requests.RequestException as e:
+    except requests_lib.RequestException as e:
         logger.error("Paystack transfer verification failed: %s", e)
         return {
             'success': False,
@@ -364,6 +368,7 @@ def process_withdrawal(user, amount, bank_account=None):
                 transaction_type=Transaction.Type.TRANSFER_OUT,
                 status=Transaction.Status.PENDING,
                 reference=reference,
+                transfer_code=result.get('transfer_code', ''),
                 description=f"Bank transfer to {bank_account.account_name} ({bank_account.account_number[-4:]})"
             )
             return {
@@ -403,3 +408,310 @@ def process_withdrawal(user, amount, bank_account=None):
             'transaction': transaction,
             'message': f'Withdrawal of ₦{amount} recorded. Please verify your bank account to enable automatic transfers.',
         }
+
+
+# ========================
+# Pandascrow Escrow Integration
+# ========================
+
+class PandascrowAPIError(Exception):
+    """Custom exception for Pandascrow API failures."""
+
+    def __init__(self, message, status_code=None, response_data=None):
+        self.status_code = status_code
+        self.response_data = response_data or {}
+        super().__init__(message)
+
+
+# Module-level token cache for Pandascrow authentication
+_pandascrow_token_cache = {'token': None, 'expires_at': 0}
+
+
+def is_pandascrow_configured():
+    """Check if Pandascrow is properly configured (has client ID and secret)."""
+    return bool(settings.PANDASCROW_CLIENT_ID and settings.PANDASCROW_CLIENT_SECRET)
+
+
+def get_pandascrow_auth_token():
+    """Authenticate with Pandascrow and return an access token.
+
+    Uses module-level cache with 55-minute TTL (tokens typically last 60 min).
+    Re-authenticates automatically when the token expires.
+    """
+    global _pandascrow_token_cache
+
+    # Return cached token if still valid
+    if _pandascrow_token_cache['token'] and time.time() < _pandascrow_token_cache['expires_at']:
+        return _pandascrow_token_cache['token']
+
+    if not is_pandascrow_configured():
+        raise PandascrowAPIError("Pandascrow is not configured. Set PANDASCROW_CLIENT_ID and PANDASCROW_CLIENT_SECRET.")
+
+    url = f"{settings.PANDASCROW_API_URL}/login"
+    data = {
+        'uuid': settings.PANDASCROW_CLIENT_ID,
+        'password': settings.PANDASCROW_CLIENT_SECRET,
+    }
+    headers = {'Content-Type': 'application/json'}
+
+    try:
+        response = requests_lib.post(url, json=data, headers=headers, timeout=15)
+        result = response.json()
+
+        # Pandascrow may return token in different response shapes
+        # Try common patterns: data.access_token, access_token, token
+        if response.status_code == 200:
+            token = None
+            if isinstance(result.get('data'), dict):
+                token = result['data'].get('access_token') or result['data'].get('token')
+            if not token:
+                token = result.get('access_token') or result.get('token')
+
+            if token:
+                # Cache for 55 minutes
+                _pandascrow_token_cache['token'] = token
+                _pandascrow_token_cache['expires_at'] = time.time() + 3300  # 55 minutes
+                return token
+            else:
+                # If login succeeded but no token, try using the secret key directly as Bearer token
+                # (Some Pandascrow setups use the secret key directly)
+                logger.info("Pandascrow login returned no access token — using secret key as Bearer token")
+                _pandascrow_token_cache['token'] = settings.PANDASCROW_CLIENT_SECRET
+                _pandascrow_token_cache['expires_at'] = time.time() + 3300
+                return settings.PANDASCROW_CLIENT_SECRET
+        else:
+            error_msg = result.get('message', result.get('error', 'Authentication failed'))
+            raise PandascrowAPIError(
+                f"Pandascrow authentication failed: {error_msg}",
+                status_code=response.status_code,
+                response_data=result,
+            )
+    except requests_lib.RequestException as e:
+        raise PandascrowAPIError(f"Pandascrow auth request failed: {e}")
+
+
+def pandascrow_api_request(method, endpoint, data=None, retry_on_auth=True):
+    """Make an authenticated request to the Pandascrow API.
+
+    Args:
+        method: HTTP method ('get', 'post', 'put', 'patch', 'delete')
+        endpoint: API endpoint path (e.g., '/escrow/initialize')
+        data: Request body dict for POST/PUT/PATCH
+        retry_on_auth: Whether to retry once on 401 (re-authenticate)
+
+    Returns:
+        Parsed JSON response dict
+
+    Raises:
+        PandascrowAPIError on failure
+    """
+    token = get_pandascrow_auth_token()
+    url = f"{settings.PANDASCROW_API_URL}{endpoint}"
+    headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/json',
+    }
+
+    try:
+        if method.lower() == 'get':
+            response = requests_lib.get(url, headers=headers, timeout=15)
+        elif method.lower() == 'post':
+            response = requests_lib.post(url, json=data, headers=headers, timeout=15)
+        elif method.lower() == 'put':
+            response = requests_lib.put(url, json=data, headers=headers, timeout=15)
+        elif method.lower() == 'patch':
+            response = requests_lib.patch(url, json=data, headers=headers, timeout=15)
+        elif method.lower() == 'delete':
+            response = requests_lib.delete(url, headers=headers, timeout=15)
+        else:
+            raise PandascrowAPIError(f"Unsupported HTTP method: {method}")
+
+        # Handle 401 by re-authenticating and retrying once
+        if response.status_code == 401 and retry_on_auth:
+            global _pandascrow_token_cache
+            _pandascrow_token_cache['token'] = None  # Clear cached token
+            return pandascrow_api_request(method, endpoint, data, retry_on_auth=False)
+
+        result = response.json() if response.content else {}
+
+        if response.status_code >= 400:
+            error_msg = result.get('message', result.get('error', f'HTTP {response.status_code}'))
+            raise PandascrowAPIError(
+                f"Pandascrow API error: {error_msg}",
+                status_code=response.status_code,
+                response_data=result,
+            )
+
+        return result
+
+    except requests_lib.RequestException as e:
+        raise PandascrowAPIError(f"Pandascrow API request failed: {e}")
+
+
+def pandascrow_initialize_escrow(job, amount, customer, artisan):
+    """Create a one-time escrow on Pandascrow for a job.
+
+    Args:
+        job: The Job instance
+        amount: Decimal escrow amount in NGN
+        customer: The User (customer) who will pay
+        artisan: The ArtisanProfile instance who will receive payment
+
+    Returns:
+        Tuple of (escrow_id, payment_url) on success
+
+    Raises:
+        PandascrowAPIError on failure
+    """
+    commission_rate = AppSettings.get_commission_rate()
+    # Pandascrow expects partner_escrow_fee as a percentage string (e.g., "10" for 10%)
+    partner_fee_percentage = str(int(commission_rate * 100))
+
+    data = {
+        'uuid': str(customer.id),  # Use customer's local ID as identifier
+        'escrow_type': 'onetime',
+        'initiator_role': 'buyer',
+        'initiator_id': str(customer.id),
+        'receiver_id': str(artisan.user.id),
+        'title': f"Job #{job.id} - {job.description[:50]}",
+        'currency': 'NGN',
+        'amount': float(amount),
+        'description': job.description,
+        'inspection_period': '3',
+        'delivery_date': job.scheduled_time.strftime('%Y-%m-%d'),
+        'how_dispute_is_handled': 'platform',
+        'who_pay_fees': 'both',  # Platform fee split between buyer and seller
+        'partner_escrow_fee': partner_fee_percentage,
+        'callback_url': settings.PANDASCROW_CALLBACK_URL,
+        'buyer_details': {
+            'name': customer.get_full_name() or customer.username,
+            'email': customer.email,
+            'phone': getattr(customer, 'phone_number', ''),
+        },
+        'seller_details': {
+            'name': artisan.user.get_full_name() or artisan.user.username,
+            'email': artisan.user.email,
+            'phone': getattr(artisan.user, 'phone_number', ''),
+        },
+    }
+
+    # Remove None values
+    data = {k: v for k, v in data.items() if v is not None and v != ''}
+
+    try:
+        result = pandascrow_api_request('post', '/escrow/initialize', data=data)
+    except PandascrowAPIError:
+        raise
+    except Exception as e:
+        raise PandascrowAPIError(f"Failed to initialize Pandascrow escrow: {e}")
+
+    escrow_data = result.get('data', result)
+    escrow_id = escrow_data.get('escrow_id') or escrow_data.get('id')
+    payment_url = escrow_data.get('payment_url') or escrow_data.get('authorization_url')
+
+    if not escrow_id:
+        raise PandascrowAPIError(
+            "Pandascrow escrow initialization succeeded but no escrow_id returned",
+            response_data=result,
+        )
+
+    logger.info(
+        "Pandascrow escrow initialized: escrow_id=%s, job_id=%s, amount=%s",
+        escrow_id, job.id, amount
+    )
+    return escrow_id, payment_url
+
+
+def pandascrow_complete_escrow(escrow_id, otp=None):
+    """Mark a Pandascrow escrow as complete.
+
+    Args:
+        escrow_id: The Pandascrow escrow identifier
+        otp: Optional OTP code if Pandascrow requires it for confirmation
+
+    Returns:
+        Response data dict from Pandascrow
+
+    Raises:
+        PandascrowAPIError on failure
+    """
+    data = {
+        'escrow_id': escrow_id,
+    }
+    if otp:
+        data['otp'] = otp
+
+    try:
+        result = pandascrow_api_request('post', '/escrow/complete', data=data)
+        logger.info("Pandascrow escrow completed: escrow_id=%s", escrow_id)
+        return result
+    except PandascrowAPIError:
+        raise
+    except Exception as e:
+        raise PandascrowAPIError(f"Failed to complete Pandascrow escrow: {e}")
+
+
+def pandascrow_cancel_escrow(escrow_id):
+    """Cancel a Pandascrow escrow (used for refunds/disputes).
+
+    Args:
+        escrow_id: The Pandascrow escrow identifier
+
+    Returns:
+        Response data dict from Pandascrow
+
+    Raises:
+        PandascrowAPIError on failure
+    """
+    try:
+        result = pandascrow_api_request('post', f'/escrow/{escrow_id}/cancel', data={})
+        logger.info("Pandascrow escrow cancelled: escrow_id=%s", escrow_id)
+        return result
+    except PandascrowAPIError:
+        raise
+    except Exception as e:
+        raise PandascrowAPIError(f"Failed to cancel Pandascrow escrow: {e}")
+
+
+def pandascrow_get_escrow(escrow_id):
+    """Fetch escrow details from Pandascrow.
+
+    Args:
+        escrow_id: The Pandascrow escrow identifier
+
+    Returns:
+        Escrow data dict from Pandascrow
+
+    Raises:
+        PandascrowAPIError on failure
+    """
+    try:
+        result = pandascrow_api_request('get', f'/escrow/{escrow_id}')
+        return result.get('data', result)
+    except PandascrowAPIError:
+        raise
+    except Exception as e:
+        raise PandascrowAPIError(f"Failed to fetch Pandascrow escrow: {e}")
+
+
+def verify_pandascrow_webhook_signature(payload, signature):
+    """Verify the HMAC-SHA256 signature of a Pandascrow webhook payload.
+
+    Args:
+        payload: Raw request body bytes
+        signature: Value of the X-Pandascrow-Signature header
+
+    Returns:
+        True if the signature is valid, False otherwise
+    """
+    if not settings.PANDASCROW_WEBHOOK_SECRET:
+        logger.warning("Pandascrow webhook secret not configured — skipping signature verification")
+        return False
+
+    expected_signature = hmac.new(
+        settings.PANDASCROW_WEBHOOK_SECRET.encode('utf-8'),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected_signature)

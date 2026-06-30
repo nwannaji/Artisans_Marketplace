@@ -1,7 +1,7 @@
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
-import 'package:artisans_app/screens/rating_selector.dart';
+import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
@@ -179,6 +179,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               profession: profession,
               search: search,
               ordering: '-rating',
+              lat: _currentPosition!.latitude,
+              lng: _currentPosition!.longitude,
             );
           } catch (e) {
             logger.d("Fallback list search failed: $e");
@@ -246,6 +248,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       case 'OFFLINE': return Colors.grey;
       default: return Colors.grey;
     }
+  }
+
+  /// Format distance for display: "Nearby" for <100m, meters for <1km, km otherwise.
+  String _formatDistance(double km) {
+    if (km < 0.1) return 'Nearby';
+    if (km < 1.0) return '${(km * 1000).round()} m';
+    if (km < 10.0) return '${km.toStringAsFixed(1)} km';
+    return '${km.round()} km';
   }
 
   Color _statusColor(JobStatus status) {
@@ -588,31 +598,38 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     ),
                   ),
                   // Distance / ETA
-                  if (artisan.distanceKm != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${artisan.distanceKm!.toStringAsFixed(1)} km',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).primaryColor),
-                          ),
-                        ),
-                        if (artisan.estimatedArrivalMinutes != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
+                  if (_currentPosition != null) ...[
+                    Builder(builder: (context) {
+                      final dist = artisan.computeDistanceKm(
+                        _currentPosition!.latitude, _currentPosition!.longitude,
+                      );
+                      if (dist == null) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: Text(
-                              '~${artisan.estimatedArrivalMinutes} min',
-                              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                              _formatDistance(dist),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Theme.of(context).primaryColor),
                             ),
                           ),
-                      ],
-                    ),
+                          if (artisan.estimatedArrivalMinutes != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '~${artisan.estimatedArrivalMinutes} min',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+                  ],
                 ],
               ),
               // Action row
@@ -893,14 +910,54 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (confirmed != true) return;
 
     try {
-      await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
+      final response = await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
       if (!mounted) return;
+
+      final escrowReleased = response['escrow_released'] == true;
+      final otpRequired = response['escrow_release_otp_required'] == true;
+
+      if (otpRequired) {
+        // Escrow requires OTP — navigate to EscrowPaymentScreen for OTP entry
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Job approved! Payment requires OTP confirmation.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        final escrowResult = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EscrowPaymentScreen(
+              jobId: job.id,
+              agreedPrice: job.agreedPrice,
+              job: job,
+            ),
+          ),
+        );
+        if (!mounted) return;
+        if (escrowResult == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment released to artisan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _loadMyArtisans();
+        return;
+      }
+
       // Prompt for rating after approval
       final rated = await _showRatingDialog(job);
       if (!mounted) return;
+      String message = rated ? 'Job approved and rated!' : 'Job approved!';
+      if (escrowReleased) {
+        message = rated ? 'Job approved, rated, and payment released!' : 'Job approved! Payment released to artisan.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(rated ? 'Job approved and rated!' : 'Job approved!'),
+          content: Text(message),
           backgroundColor: Colors.green,
         ),
       );
@@ -908,7 +965,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Action failed. Please try again.'), backgroundColor: Colors.red),
       );
     }
   }

@@ -1,7 +1,8 @@
 // lib/screens/admin_customers_screen.dart
-import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
 import 'package:flutter/material.dart';
 
 class AdminCustomersScreen extends StatefulWidget {
@@ -159,16 +160,9 @@ class _AdminCustomersScreenState extends State<AdminCustomersScreen> {
                     children: [
                       Flexible(child: Text(username, style: const TextStyle(fontWeight: FontWeight.w600))),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isActive ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isActive ? 'Active' : 'Inactive',
-                          style: TextStyle(fontSize: 10, color: isActive ? Colors.green : Colors.red, fontWeight: FontWeight.w600),
-                        ),
+                      StatusBadge.outlined(
+                        label: isActive ? 'Active' : 'Inactive',
+                        color: isActive ? Colors.green : Colors.red,
                       ),
                     ],
                   ),

@@ -1,6 +1,9 @@
 // lib/screens/admin_escrow_screen.dart
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/services/payment_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/empty_state.dart';
 import 'package:flutter/material.dart';
 
 class AdminEscrowScreen extends StatefulWidget {
@@ -168,20 +171,6 @@ class _AdminEscrowScreenState extends State<AdminEscrowScreen> {
     }
   }
 
-  Color _statusColor(JobStatus status) {
-    switch (status) {
-      case JobStatus.pending: return Colors.orange;
-      case JobStatus.adminApproved: return Colors.blue;
-      case JobStatus.accepted: return Colors.indigo;
-      case JobStatus.inProgress: return Colors.teal;
-      case JobStatus.awaitingReview: return Colors.amber;
-      case JobStatus.completed: return Colors.green;
-      case JobStatus.cancelled: return Colors.red;
-      case JobStatus.disputed: return Colors.pink;
-      case JobStatus.rejected: return Colors.grey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,64 +198,22 @@ class _AdminEscrowScreenState extends State<AdminEscrowScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.account_balance_wallet_outlined, size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            const Text(
-              'No escrow funds held',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'When customers fund escrow for jobs, they will appear here for you to manage.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
-              onPressed: _loadEscrowJobs,
-            ),
-          ],
-        ),
+    return EmptyState(
+      icon: Icons.account_balance_wallet_outlined,
+      title: 'No escrow funds held',
+      subtitle: 'When customers fund escrow for jobs, they will appear here for you to manage.',
+      action: ElevatedButton.icon(
+        icon: const Icon(Icons.refresh),
+        label: const Text('Refresh'),
+        onPressed: _loadEscrowJobs,
       ),
     );
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-            const SizedBox(height: 16),
-            const Text(
-              'Failed to load escrow data',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error ?? 'Unknown error',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-              onPressed: _loadEscrowJobs,
-            ),
-          ],
-        ),
-      ),
+    return ErrorState(
+      message: _error ?? 'Failed to load escrow data',
+      onRetry: _loadEscrowJobs,
     );
   }
 
@@ -291,13 +238,9 @@ class _AdminEscrowScreenState extends State<AdminEscrowScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(job.status),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(job.status.label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                StatusBadge.filled(
+                  label: job.status.label,
+                  color: AppColors.jobStatusColor(job.status),
                 ),
               ],
             ),

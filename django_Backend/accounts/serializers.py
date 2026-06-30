@@ -1,8 +1,11 @@
+import random
+
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import CustomerProfile, ArtisanProfile
+from .models import CustomerProfile, ArtisanProfile, OTPVerification
 from payments.models import Wallet
 
 User = get_user_model()
@@ -79,10 +82,8 @@ class UserLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid credentials')
 
         if not user_obj.is_active:
-            raise serializers.ValidationError(
-                'Your account is awaiting admin approval. '
-                'Please contact an administrator to activate your account.'
-            )
+            # SECURITY: Use generic message to avoid revealing that the username exists
+            raise serializers.ValidationError('Invalid credentials')
 
         if user_obj.role != role:
             raise serializers.ValidationError('Role mismatch')
@@ -183,11 +184,11 @@ class ArtisanProfileSelfUpdateSerializer(serializers.ModelSerializer):
     """Serializer for artisans to update their own profile via
     PATCH /api/auth/me/artisan-profile/
 
-    Only profession, skills, hourly_rate, bio, and location are editable.
+    Only profession, skills, hourly_rate, bio, location, latitude, and longitude are editable.
     """
     class Meta:
         model = ArtisanProfile
-        fields = ['profession', 'skills', 'hourly_rate', 'bio', 'location']
+        fields = ['profession', 'skills', 'hourly_rate', 'bio', 'location', 'latitude', 'longitude']
 
     def validate_profession(self, value):
         if not value or not value.strip():
@@ -221,3 +222,87 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     def get_job_count(self, obj):
         from bookings.models import Job
         return Job.objects.filter(customer=obj.user).count()
+
+
+# Forgot Password Serializer
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False)
+    username = serializers.CharField(required=False)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        username = attrs.get('username')
+
+        if not email and not username:
+            raise serializers.ValidationError(
+                "Please provide either an email address or username."
+            )
+
+        # Look up user by email or username — always return the same
+        # generic success message so we don't reveal whether the account exists.
+        user = None
+        if email:
+            try:
+                user = User.objects.get(email__iexact=email)
+            except User.DoesNotExist:
+                pass
+        elif username:
+            try:
+                user = User.objects.get(username__iexact=username)
+            except User.DoesNotExist:
+                pass
+
+        # Attach the user (or None) for the view to handle
+        attrs['user'] = user
+        return attrs
+
+
+# Reset Password Serializer
+class ResetPasswordSerializer(serializers.Serializer):
+    otp = serializers.CharField(
+        max_length=6,
+        min_length=6,
+        help_text="The 6-digit OTP sent to your email."
+    )
+    new_password = serializers.CharField(write_only=True)
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        otp = attrs.get('otp')
+        new_password = attrs.get('new_password')
+        new_password2 = attrs.get('new_password2')
+
+        if new_password != new_password2:
+            raise serializers.ValidationError(
+                {"new_password2": "Passwords do not match."}
+            )
+
+        # Look up a valid (unused, not expired) OTP record
+        try:
+            otp_record = OTPVerification.objects.get(
+                otp=otp,
+                purpose=OTPVerification.Purpose.PASSWORD_RESET,
+                is_used=False,
+            )
+        except OTPVerification.DoesNotExist:
+            raise serializers.ValidationError(
+                {"otp": "Invalid or expired OTP."}
+            )
+
+        if otp_record.is_expired():
+            raise serializers.ValidationError(
+                {"otp": "OTP has expired. Please request a new one."}
+            )
+
+        # Validate the new password against Django's validators
+        user = otp_record.user
+        try:
+            validate_password(new_password, user=user)
+        except Exception:
+            raise serializers.ValidationError(
+                {"new_password": "Password does not meet security requirements."}
+            )
+
+        attrs['otp_record'] = otp_record
+        attrs['user'] = user
+        return attrs

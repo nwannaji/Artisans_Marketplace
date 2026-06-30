@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 
 from accounts.users_manager import CustomUserManager
 
@@ -25,6 +28,13 @@ class User(AbstractUser):
         help_text="For artisans/admins, must be approved by admin"
     )
     objects = CustomUserManager()
+
+    def get_full_name_or_username(self):
+        """Return the user's full name if available, otherwise username."""
+        full_name = self.get_full_name()
+        if full_name and full_name.strip():
+            return full_name.strip()
+        return self.username
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
@@ -88,3 +98,37 @@ class ArtisanProfile(UserProfile):
 
     def __str__(self):
         return f"Artisan Profile - {self.user.username}"
+
+
+# OTP Verification for password reset and email verification
+class OTPVerification(models.Model):
+    class Purpose(models.TextChoices):
+        PASSWORD_RESET = 'password_reset', _('Password Reset')
+        EMAIL_VERIFICATION = 'email_verification', _('Email Verification')
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_verifications')
+    otp = models.CharField(max_length=6)
+    purpose = models.CharField(
+        max_length=20,
+        choices=Purpose.choices,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'purpose'], name='idx_otp_user_purpose'),
+            models.Index(fields=['otp', 'purpose'], name='idx_otp_code_purpose'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(minutes=15)
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"OTP for {self.user.username} ({self.get_purpose_display()})"

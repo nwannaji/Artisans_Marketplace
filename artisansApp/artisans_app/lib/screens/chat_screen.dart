@@ -233,6 +233,25 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
       ),
       body: Column(
         children: [
+          // Auto-delete notice
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Messages older than 2 weeks are automatically removed',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())

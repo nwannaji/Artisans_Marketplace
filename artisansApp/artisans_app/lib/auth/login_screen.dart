@@ -1,6 +1,7 @@
 import 'package:artisans_app/screens/user_home_screen.dart';
 import 'package:artisans_app/screens/artisan_dashboard.dart';
 import 'package:artisans_app/screens/admin_dashboard.dart';
+import 'package:artisans_app/auth/forgot_password_screen.dart';
 import 'package:artisans_app/viewmodels/auth_view_model.dart';
 import 'package:artisans_app/models/user.dart';
 import 'package:flutter/material.dart';
@@ -103,9 +104,9 @@ class _LoginFormState extends State<_LoginForm> {
           DropdownButtonFormField<String>(
             value: _selectedRole,
             items: const [
+              // SECURITY: Admin login removed from UI — admin access via separate entry point
               DropdownMenuItem(value: 'CUSTOMER', child: Text('Customer')),
               DropdownMenuItem(value: 'ARTISAN', child: Text('Artisan')),
-              DropdownMenuItem(value: 'ADMIN', child: Text('Admin')),
             ],
             onChanged: (value) {
               if (value != null) setState(() => _selectedRole = value);
@@ -125,6 +126,16 @@ class _LoginFormState extends State<_LoginForm> {
               );
             },
             child: const Text('Login'),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+              );
+            },
+            child: const Text('Forgot Password?'),
           ),
         ],
       ),

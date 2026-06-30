@@ -162,6 +162,7 @@ class ApiClient {
 
   // --- Auto-refresh wrapper ---
   // On TokenExpiredException, refreshes the token and retries once.
+  // If refresh also fails, clears all stored tokens (forced logout).
 
   Future<T> _withRefresh<T>(Future<T> Function() request) async {
     try {
@@ -173,7 +174,8 @@ class ApiClient {
         // Retry the original request with the new token
         return await request();
       }
-      // Refresh failed — rethrow so the caller knows auth is needed
+      // Refresh failed — clear tokens to force re-login
+      await _tokenService.clearTokens();
       rethrow;
     }
   }

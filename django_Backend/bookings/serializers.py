@@ -37,6 +37,15 @@ class JobCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class ArtisanReviewSerializer(serializers.ModelSerializer):
+    """Serializer for displaying individual reviews on an artisan's public profile."""
+    customer_name = serializers.CharField(source='customer.get_full_name_or_username', read_only=True)
+
+    class Meta:
+        model = Job
+        fields = ['id', 'customer_name', 'rating', 'review', 'description', 'created_at']
+
+
 class JobRatingSerializer(serializers.Serializer):
     """Serializer for submitting a rating and optional review for a completed job."""
     rating = serializers.FloatField(min_value=1, max_value=5)

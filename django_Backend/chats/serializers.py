@@ -79,15 +79,16 @@ class ConversationSerializer(serializers.ModelSerializer):
 class ConversationCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a conversation.
 
-    SECURITY: The client field defaults to the requesting user.
+    SECURITY: The client field is always set to the requesting user
+    by the view's perform_create method. It is not exposed as a writable
+    field to prevent users from creating conversations on behalf of others.
     The artisan must be specified and must be an active artisan.
     Users cannot create conversations between arbitrary other users.
     """
     class Meta:
         model = Conversation
-        fields = ['client', 'artisan', 'related_job']
+        fields = ['artisan', 'related_job']
         extra_kwargs = {
-            'client': {'required': False},
             'related_job': {'required': False},
         }
 

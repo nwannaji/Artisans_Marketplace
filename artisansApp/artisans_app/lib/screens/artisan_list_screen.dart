@@ -1,5 +1,10 @@
 // lib/screens/artisan_list_screen.dart
 import 'package:artisans_app/screens/artisan_profile.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/theme/app_spacing.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/empty_state.dart';
+import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/viewmodels/base_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,40 +25,128 @@ class ArtisanListScreen extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             if (viewModel.state == ViewState.error) {
-              return Center(child: Text('Error: ${viewModel.errorMessage}'));
+              return ErrorState(
+                message: viewModel.errorMessage ?? 'Failed to load artisans',
+                onRetry: () => viewModel.fetchArtisans(),
+              );
             }
             if (viewModel.artisans.isEmpty) {
-              return const Center(child: Text('No artisans found.'));
+              return const EmptyState(
+                icon: Icons.search_off,
+                title: 'No artisans found',
+                subtitle: 'Try adjusting your search or check back later.',
+              );
             }
-            return ListView.builder(
-              itemCount: viewModel.artisans.length,
-              itemBuilder: (context, index) {
-                final artisan = viewModel.artisans[index];
-                return ListTile(
-                  leading: const CircleAvatar(
-                    // backgroundImage: NetworkImage(artisan.photoUrl),
-                  ),
-                  title: Text(artisan.fullName),
-                  subtitle: Text(artisan.profession ?? 'N/A'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber),
-                      Text(artisan.rating.toStringAsFixed(1)),
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => ProfileScreen(artisanId: artisan.id)),
-                    );
-                  },
-                );
-              },
+            return RefreshIndicator(
+              onRefresh: () => viewModel.fetchArtisans(),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.sm,
+                ),
+                itemCount: viewModel.artisans.length,
+                itemBuilder: (context, index) {
+                  final artisan = viewModel.artisans[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ProfileScreen(artisanId: artisan.id)),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Row(
+                          children: [
+                            // Avatar with availability indicator
+                            Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                  backgroundImage: (artisan.profilePicture != null && artisan.profilePicture!.isNotEmpty)
+                                      ? NetworkImage(artisan.profilePicture!)
+                                      : null,
+                                  child: artisan.profilePicture == null || artisan.profilePicture!.isEmpty
+                                      ? Text(
+                                          artisan.fullName.isNotEmpty ? artisan.fullName[0].toUpperCase() : '?',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primary,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.availabilityColor(artisan.isAvailable),
+                                      shape: BoxShape.circle,
+                                      border: Border.fromBorderSide(
+                                        const BorderSide(color: Colors.white, width: 2),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            // Name, profession, and rating
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    artisan.fullName,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    artisan.profession ?? 'Artisan',
+                                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  StarRatingDisplay(
+                                    rating: artisan.rating,
+                                    reviewCount: artisan.reviewCount,
+                                    starSize: 14,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Availability badge
+                            StatusBadge.outlined(
+                              label: _availabilityLabel(artisan.isAvailable),
+                              color: AppColors.availabilityColor(artisan.isAvailable),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             );
           },
         ),
       ),
     );
+  }
+
+  String _availabilityLabel(String status) {
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE': return 'Available';
+      case 'ENGAGED': return 'Engaged';
+      case 'BUSY': return 'Busy';
+      case 'OFFLINE': return 'Offline';
+      default: return status;
+    }
   }
 }

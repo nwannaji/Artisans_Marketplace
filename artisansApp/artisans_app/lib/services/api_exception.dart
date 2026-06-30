@@ -39,10 +39,10 @@ class ApiException implements Exception {
 
 class AuthException extends ApiException {
   AuthException({
-    int? statusCode,
-    required String message,
-    Map<String, dynamic>? errors,
-  }) : super(statusCode: statusCode, message: message, errors: errors);
+    super.statusCode,
+    required super.message,
+    super.errors,
+  });
 }
 
 class TokenExpiredException extends ApiException {

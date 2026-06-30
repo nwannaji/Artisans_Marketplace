@@ -43,7 +43,8 @@ class AuthViewModel extends ChangeNotifier {
       _setState(AuthState.error);
       return null;
     } catch (e) {
-      _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+      // SECURITY: Don't expose raw exception details
+      _errorMessage = 'An unexpected error occurred. Please try again.';
       _setState(AuthState.error);
       return null;
     }
@@ -57,6 +58,7 @@ class AuthViewModel extends ChangeNotifier {
     required String password2,
     required String role,
     String? phoneNumber,
+    String? profession,
   }) async {
     _setState(AuthState.loading);
     _errorMessage = null;
@@ -69,6 +71,7 @@ class AuthViewModel extends ChangeNotifier {
         password2: password2,
         role: role,
         phoneNumber: phoneNumber,
+        profession: profession,
       );
 
       if (response.containsKey('tokens')) {
@@ -85,7 +88,8 @@ class AuthViewModel extends ChangeNotifier {
       _setState(AuthState.error);
       return null;
     } catch (e) {
-      _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+      // SECURITY: Don't expose raw exception details
+      _errorMessage = 'An unexpected error occurred. Please try again.';
       _setState(AuthState.error);
       return null;
     }

@@ -4,7 +4,7 @@ import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
 import 'package:artisans_app/screens/escrow_payment_screen.dart';
-import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
@@ -78,8 +78,7 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
       final locationService = LocationService();
       final result = await locationService.getCurrentLocationWithAddress();
       if (result != null) {
-        await ArtisanApiService().toggleAvailability(
-          _artisanProfile?.isAvailable ?? 'OFFLINE',
+        await ArtisanApiService().updateLocation(
           latitude: result.latitude,
           longitude: result.longitude,
           location: result.address,
@@ -701,7 +700,9 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                 const SizedBox(width: 16),
                 if (job.location != null) ...[
                   const Icon(Icons.location_on, size: 16, color: Colors.red),
-                  Text(' ${job.location!}', style: const TextStyle(fontSize: 13)),
+                  Expanded(
+                    child: Text(' ${job.location!}', style: const TextStyle(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               ],
             ),

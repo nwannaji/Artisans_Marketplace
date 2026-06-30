@@ -28,7 +28,7 @@
                     <td class="px-5 py-3 text-gray-700">{{ job.customer.username }}</td>
                     <td class="px-5 py-3 text-gray-700">{{ job.artisan.user.username|default:"Unassigned" }}</td>
                     <td class="px-5 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-{{ job.status|status_color }}/10 text-{{ job.status|status_color }}-700">{{ job.get_status_display }}</span></td>
-                    <td class="px-5 py-3 font-bold text-purple-700">{{ job.escrow_held_amount|naira }}</td>
+                    <td class="px-5 py-3 font-bold text-purple-700">{{ job.escrow_held_amount|naira }}{% if job.pandascrow_escrow %}<span class="ml-1 text-xs text-indigo-500">({{ job.pandascrow_escrow.get_status_display }})</span>{% endif %}</td>
                     <td class="px-5 py-3 text-gray-500">{{ job.created_at|date:"M d" }}</td>
                     <td class="px-5 py-3"><a href="{% url 'admin_dashboard:escrow_detail' job.pk %}" class="text-brand hover:underline text-sm"><i class="bi bi-eye mr-1"></i>Manage</a></td>
                 </tr>

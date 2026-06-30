@@ -1,13 +1,18 @@
-// lib/screens/profile_screen.dart
+// lib/screens/artisan_profile.dart
 import 'dart:io';
+import 'dart:math';
+import 'package:intl/intl.dart';
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
+import 'package:artisans_app/models/review.dart';
 import 'package:artisans_app/models/user.dart';
 import 'package:artisans_app/screens/account_settings_screen.dart';
 import 'package:artisans_app/screens/booking_history_screen.dart';
 import 'package:artisans_app/screens/chat_screen.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
-import 'package:artisans_app/screens/rating_selector.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/theme/app_spacing.dart';
+import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/api_exception.dart';
@@ -33,7 +38,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isDataFetched = false;
   Artisan? _viewedArtisan;
   bool _isLoadingArtisan = false;
-  Job? _unratedJob; // The first completed-but-unrated job with this artisan
+
+  // Reviews state
+  List<Review> _reviews = [];
+  bool _isLoadingReviews = false;
+  int _reviewsPage = 1;
+  bool _hasMoreReviews = false;
+  RatingSummary? _ratingSummary;
+
+  // Unrated jobs state (all unrated completed jobs, not just one)
+  List<Job> _unratedJobs = [];
   bool _isCheckingJobs = false;
 
   @override
@@ -55,8 +69,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (widget.artisanId != null && widget.artisanData == null) {
           _loadArtisanProfile();
         }
-        // Check for unrated completed jobs with this artisan
+        // Load reviews and check for unrated jobs on artisan profiles
         if (widget.artisanId != null) {
+          _loadReviews();
           _checkForUnratedJobs();
         }
       });
@@ -73,25 +88,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoadingArtisan = false);
   }
 
+  /// Load reviews and rating summary for the artisan.
+  Future<void> _loadReviews({int page = 1}) async {
+    if (_isLoadingReviews) return;
+    setState(() => _isLoadingReviews = true);
+    try {
+      final result = await ArtisanApiService().getArtisanReviews(widget.artisanId!, page: page);
+      final reviews = result['results'] as List<Review>;
+      final summary = result['summary'] as RatingSummary?;
+      final hasNext = result['next'] != null;
+      setState(() {
+        if (page == 1) {
+          _reviews = reviews;
+        } else {
+          _reviews.addAll(reviews);
+        }
+        _ratingSummary = summary;
+        _reviewsPage = page;
+        _hasMoreReviews = hasNext;
+      });
+    } catch (e) {
+      debugPrint('Error loading reviews: $e');
+    }
+    setState(() => _isLoadingReviews = false);
+  }
+
   /// Check if the current user has any completed-but-unrated jobs with this artisan.
   Future<void> _checkForUnratedJobs() async {
     setState(() => _isCheckingJobs = true);
     try {
       final jobs = await BookingApiService().listJobs(status: 'COMPLETED');
-      // Find the first completed job with this artisan that hasn't been rated yet
-      final unrated = jobs.where((j) =>
-        j.artisanId == widget.artisanId && j.rating == null
-      ).toList();
-      if (unrated.isNotEmpty) {
-        setState(() => _unratedJob = unrated.first);
-      }
+      setState(() {
+        _unratedJobs = jobs.where((j) =>
+          j.artisanId == widget.artisanId && j.rating == null
+        ).toList();
+      });
     } catch (e) {
       debugPrint('Error checking for unrated jobs: $e');
     }
     setState(() => _isCheckingJobs = false);
   }
 
-  /// Show a rating dialog for the artisan.
+  /// Show a rating dialog for a specific job.
   Future<void> _rateArtisan(Job job) async {
     double selectedRating = 0;
     final reviewController = TextEditingController();
@@ -108,6 +146,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text('Rate ${_viewedArtisan?.fullName ?? "this artisan"}\'s work',
                     style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                const SizedBox(height: 4),
+                // Show the job description so the customer remembers the context
+                Text('Job: "${job.description}"',
+                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black45)),
                 const SizedBox(height: 16),
                 RatingSelector(
                   initialRating: 0,
@@ -165,7 +207,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
         // Refresh the artisan profile to show updated rating
         await _loadArtisanProfile();
-        setState(() => _unratedJob = null);
+        // Refresh reviews list to show the new review
+        await _loadReviews(page: 1);
+        // Remove the rated job from unrated jobs
+        setState(() {
+          _unratedJobs = _unratedJobs.where((j) => j.id != job.id).toList();
+        });
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -223,6 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // ── Profile Header ──
         Center(
           child: CircleAvatar(
             radius: 50,
@@ -263,6 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 8),
+        // Aggregate star rating
         Center(
           child: StarRatingDisplay(
             rating: a.rating,
@@ -270,57 +319,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             starSize: 20,
           ),
         ),
-        // Rate this artisan (if user has an unrated completed job)
-        if (_unratedJob != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade200),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.star, color: Colors.amber[700], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Rate ${a.fullName}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.amber[800],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'You had a completed job with this artisan. Share your feedback!',
-                  style: TextStyle(fontSize: 12, color: Colors.amber[900]),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.star_border, size: 18),
-                  label: const Text('Rate this artisan'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber[700],
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(40),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () => _rateArtisan(_unratedJob!),
-                ),
-              ],
-            ),
-          ),
-        ] else if (_isCheckingJobs) ...[
-          const SizedBox(height: 8),
-          const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
-        ],
         if (a.jobsCompleted > 0)
           Center(
             child: Text(
@@ -366,8 +364,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(a.bio!),
         ],
+
+        // ── Rating Summary & Reviews Section ──
         const SizedBox(height: 24),
-        // Book this artisan button
+        _buildReviewsSection(a),
+
+        // ── Book & Message Buttons ──
+        const SizedBox(height: 24),
         if (a.isAvailableNow)
           ElevatedButton.icon(
             icon: const Icon(Icons.calendar_today),
@@ -429,6 +432,351 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
       ],
+    );
+  }
+
+  // ── Reviews & Ratings Section ──
+
+  Widget _buildReviewsSection(Artisan a) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Row(
+          children: [
+            const Icon(Icons.star, color: Colors.amber, size: 22),
+            const SizedBox(width: 8),
+            const Text('Reviews & Ratings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Rating summary card
+        if (_ratingSummary != null)
+          _buildRatingSummaryCard()
+        else if (_isLoadingReviews)
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: CircularProgressIndicator(),
+          ))
+        else
+          // Show inline summary from artisan data when reviews haven't loaded yet
+          _buildInlineRatingSummary(a),
+
+        const SizedBox(height: 16),
+
+        // Write a review CTA (only for customers with unrated completed jobs)
+        if (_unratedJobs.isNotEmpty)
+          _buildReviewCTA(a)
+        else if (_isCheckingJobs)
+          const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+
+        const SizedBox(height: 16),
+
+        // Individual reviews
+        if (_reviews.isNotEmpty) ...[
+          const Text('Customer Reviews', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ..._reviews.map((review) => _buildReviewCard(review)),
+          // Load more button
+          if (_hasMoreReviews) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _isLoadingReviews ? null : () => _loadReviews(page: _reviewsPage + 1),
+                child: _isLoadingReviews
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Load more reviews'),
+              ),
+            ),
+          ],
+        ] else if (!_isLoadingReviews && _ratingSummary != null && _ratingSummary!.totalReviews == 0) ...[
+          // No reviews yet
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  Icon(Icons.rate_review_outlined, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  Text('No reviews yet', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+                  const SizedBox(height: 4),
+                  Text('Be the first to review this artisan!',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                ],
+              ),
+            ),
+          ),
+        ] else if (_isLoadingReviews && _reviews.isEmpty) ...[
+          const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: CircularProgressIndicator(),
+          )),
+        ],
+      ],
+    );
+  }
+
+  /// Rating summary card with distribution bars.
+  Widget _buildRatingSummaryCard() {
+    final summary = _ratingSummary!;
+    final distribution = summary.ratingDistribution;
+    final maxCount = distribution.values.fold(0, max);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Large rating number + stars
+            Column(
+              children: [
+                Text(
+                  summary.averageRating.toStringAsFixed(1),
+                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                ),
+                StarRatingDisplay(
+                  rating: summary.averageRating,
+                  starSize: 18,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${summary.totalReviews} review${summary.totalReviews != 1 ? "s" : ""}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ),
+            const SizedBox(width: 24),
+            // Distribution bars
+            Expanded(
+              child: Column(
+                children: [5, 4, 3, 2, 1].map((star) {
+                  final count = distribution[star] ?? 0;
+                  final fraction = maxCount > 0 ? count / maxCount : 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Text('$star', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.star, size: 14, color: Colors.amber.shade600),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: fraction,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.amber.shade600),
+                              minHeight: 8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 24,
+                          child: Text('$count', style: const TextStyle(fontSize: 12, color: Colors.black54),
+                              textAlign: TextAlign.right),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Inline rating summary when we only have artisan data (no reviews loaded yet).
+  Widget _buildInlineRatingSummary(Artisan a) {
+    if (a.rating == 0 && a.reviewCount == 0) {
+      return const SizedBox.shrink();
+    }
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Text(a.rating.toStringAsFixed(1),
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                StarRatingDisplay(rating: a.rating, starSize: 16),
+                const SizedBox(height: 2),
+                Text('${a.reviewCount} review${a.reviewCount != 1 ? "s" : ""}',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Write a Review" CTA card for customers with unrated completed jobs.
+  Widget _buildReviewCTA(Artisan a) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.rate_review, color: Colors.amber[700], size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Share your experience',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: Colors.amber[800],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _unratedJobs.length == 1
+                ? 'You had a completed job with ${a.fullName}. How was it?'
+                : 'You have ${_unratedJobs.length} completed job${_unratedJobs.length != 1 ? "s" : ""} with ${a.fullName} that you haven\'t rated yet.',
+            style: TextStyle(fontSize: 13, color: Colors.amber[900]),
+          ),
+          const SizedBox(height: 12),
+          // Show each unrated job with a "Rate" button
+          ..._unratedJobs.map((job) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    job.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.star_border, size: 16),
+                  label: const Text('Rate'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber[700],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    textStyle: const TextStyle(fontSize: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _rateArtisan(job),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  /// Individual review card.
+  Widget _buildReviewCard(Review review) {
+    final dateStr = review.createdAt != null
+        ? DateFormat.yMMMd().format(review.createdAt!)
+        : '';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: customer avatar, name, date, stars
+            Row(
+              children: [
+                // Customer avatar (initial circle)
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  child: Text(
+                    review.customerName.isNotEmpty
+                        ? review.customerName[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        review.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      if (dateStr.isNotEmpty)
+                        Text(dateStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+                StarRatingDisplay(rating: review.rating, starSize: 14),
+              ],
+            ),
+            // Review text
+            if (review.review != null && review.review!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                '"${review.review}"',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            // Job description
+            if (review.description != null && review.description!.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.work_outline, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      review.description!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

@@ -1,11 +1,10 @@
+import 'package:artisans_app/auth/forgot_password_screen.dart';
 import 'package:artisans_app/auth/signup_logic.dart';
-import 'package:artisans_app/screens/admin_dashboard.dart';
-import 'package:artisans_app/screens/artisan_dashboard.dart';
-import 'package:artisans_app/screens/scattered_background_image.dart';
-import 'package:artisans_app/screens/user_home_screen.dart';
-import 'package:artisans_app/services/api_exception.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:flutter/material.dart';
-import 'package:artisans_app/services/auth_api_service.dart';
+import 'package:provider/provider.dart';
+import 'package:artisans_app/viewmodels/auth_view_model.dart';
+import 'package:artisans_app/models/user.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,54 +20,47 @@ class _LoginPageState extends State<LoginPage> {
   bool isLoading = false;
   bool _obscurePassword = true;
 
-  final AuthApiService _authService = AuthApiService();
-
   Future<void> login(BuildContext context) async {
     setState(() => isLoading = true);
     try {
-      final response = await _authService.login(
-        username: usernameController.text.trim(),
-        password: passwordController.text.trim(),
-        role: selectedRole,
+      final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+      final user = await authViewModel.signIn(
+        usernameController.text.trim(),
+        passwordController.text.trim(),
+        selectedRole,
       );
 
       if (!context.mounted) return;
 
-      final role = response['role'] as String;
-      if (role == 'CUSTOMER') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      } else if (role == 'ARTISAN') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ArtisanDashboardScreen()),
-        );
-      } else if (role == 'ADMIN') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
-        );
+      if (user != null) {
+        if (user.role == UserRole.customer) {
+          Navigator.pushReplacementNamed(context, '/user_home');
+        } else if (user.role == UserRole.artisan) {
+          Navigator.pushReplacementNamed(context, '/artisan_dashboard');
+        } else if (user.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin_dashboard');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Unknown role")),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Unknown role")),
-        );
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
+        // AuthViewModel already set the error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.fullMessage, style: const TextStyle(fontSize: 13)),
+            content: Text(authViewModel.errorMessage ?? 'Login failed. Please try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
+        // SECURITY: Don't expose raw exception details to the user
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Login failed: ${e.toString()}")),
+          const SnackBar(
+            content: Text('Login failed. Please check your credentials and try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -143,7 +135,20 @@ class _LoginPageState extends State<LoginPage> {
                         child: const Text("Login", style: TextStyle(fontSize: 16)),
                       ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                    );
+                  },
+                  child: const Text("Forgot Password?"),
+                ),
+              ),
+              const SizedBox(height: 4),
               TextButton(
                 onPressed: () {
                   Navigator.push(

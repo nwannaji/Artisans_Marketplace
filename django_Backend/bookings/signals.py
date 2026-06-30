@@ -64,10 +64,8 @@ def refund_escrow_on_cancellation(sender, instance, **kwargs):
     """
     When a job is cancelled with held escrow, automatically refund the customer.
 
-    Uses select_for_update within an atomic transaction to prevent race conditions.
-    The signal re-triggers when process_escrow_refund saves the job with
-    escrow_held_amount=0, but the guard condition (amount > 0) short-circuits
-    on the second invocation.
+    Routes to Pandascrow cancel if the job has a PandascrowEscrow record,
+    otherwise uses the legacy internal wallet refund flow.
     """
     if instance.status != Job.Status.CANCELLED:
         return
@@ -75,8 +73,29 @@ def refund_escrow_on_cancellation(sender, instance, **kwargs):
         return
 
     from decimal import Decimal
-    from payments.utils import process_escrow_refund
+    from payments.utils import process_escrow_refund, pandascrow_cancel_escrow, PandascrowAPIError
+    from payments.models import PandascrowEscrow
 
+    # Check if this is a Pandascrow escrow
+    pandascrow_escrow = getattr(instance, 'pandascrow_escrow', None)
+    if pandascrow_escrow and pandascrow_escrow.status in (
+        PandascrowEscrow.Status.INITIALIZED,
+        PandascrowEscrow.Status.FUNDED,
+    ):
+        try:
+            pandascrow_cancel_escrow(pandascrow_escrow.escrow_id)
+            pandascrow_escrow.status = PandascrowEscrow.Status.CANCELLED
+            pandascrow_escrow.save(update_fields=['status', 'updated_at'])
+            instance.escrow_held_amount = Decimal('0.00')
+            instance.save(update_fields=['escrow_held_amount', 'updated_at'])
+            logger.info("Cancelled Pandascrow escrow %s for cancelled job %s",
+                       pandascrow_escrow.escrow_id, instance.pk)
+        except PandascrowAPIError as e:
+            logger.exception("Failed to cancel Pandascrow escrow %s for job %s: %s",
+                            pandascrow_escrow.escrow_id, instance.pk, str(e))
+        return
+
+    # Legacy internal escrow refund
     try:
         with db_transaction.atomic():
             job = Job.objects.select_for_update().get(pk=instance.pk)

@@ -1,0 +1,170 @@
+// lib/theme/app_colors.dart
+//
+// Single source of truth for all color constants and semantic color mappings.
+// Replaces the scattered _statusColor / _availabilityColor / _transactionColor
+// methods duplicated across 6+ screens.
+
+import 'package:flutter/material.dart';
+import '../models/job.dart';
+import '../models/wallet.dart';
+import '../models/dispute.dart';
+
+class AppColors {
+  AppColors._();
+
+  // ── Primary palette (from original MyApp constants) ──────────────────
+  static const Color primary = Color(0xFF00897B);       // Teal 600
+  static const Color primaryDark = Color(0xFF00695C);    // Teal 800
+  static const Color primaryLight = Color(0xFFB2DFDB);  // Teal 100
+  static const Color accent = Color(0xFFFFB300);         // Amber 600
+  static const Color background = Color(0xFFECEFF1);     // Blue Grey 50
+  static const Color surface = Colors.white;
+  static const Color textPrimary = Color(0xFF212121);
+  static const Color textSecondary = Color(0xFF757575);
+
+  // ── Gradients ────────────────────────────────────────────────────────
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [primary, primaryDark],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // ── Job status colors ────────────────────────────────────────────────
+  /// Canonical color for each [JobStatus].
+  /// This is the single source of truth — all screens should use this
+  /// instead of their own _statusColor() methods.
+  static Color jobStatusColor(JobStatus status) {
+    switch (status) {
+      case JobStatus.pending:
+        return Colors.orange;
+      case JobStatus.adminApproved:
+        return Colors.lightBlue;
+      case JobStatus.accepted:
+        return Colors.blue;
+      case JobStatus.inProgress:
+        return Colors.orange;
+      case JobStatus.awaitingReview:
+        return Colors.purple;
+      case JobStatus.completed:
+        return Colors.green;
+      case JobStatus.cancelled:
+        return Colors.red;
+      case JobStatus.disputed:
+        return Colors.deepOrange;
+      case JobStatus.rejected:
+        return Colors.grey;
+    }
+  }
+
+  // ── Availability colors ─────────────────────────────────────────────
+  /// Color for artisan availability strings ('AVAILABLE', 'ENGAGED', etc.)
+  static Color availabilityColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'AVAILABLE':
+        return Colors.green;
+      case 'ENGAGED':
+        return Colors.orange;
+      case 'BUSY':
+        return Colors.red;
+      case 'OFFLINE':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // ── Transaction type colors ─────────────────────────────────────────
+  static Color transactionColor(TransactionType type) {
+    switch (type) {
+      case TransactionType.deposit:
+        return Colors.green;
+      case TransactionType.withdrawal:
+        return Colors.red;
+      case TransactionType.transferOut:
+        return Colors.blue;
+      case TransactionType.commission:
+        return Colors.orange;
+      case TransactionType.refund:
+        return Colors.purple;
+      case TransactionType.escrowHold:
+        return Colors.indigo;
+      case TransactionType.escrowRelease:
+        return Colors.teal;
+      case TransactionType.pandascrowFund:
+        return Colors.deepPurple;
+      case TransactionType.pandascrowRelease:
+        return Colors.cyan;
+      case TransactionType.pandascrowRefund:
+        return Colors.pink;
+      case TransactionType.pandascrowFee:
+        return Colors.amber;
+    }
+  }
+
+  static IconData transactionIcon(TransactionType type) {
+    switch (type) {
+      case TransactionType.deposit:
+        return Icons.add_circle;
+      case TransactionType.withdrawal:
+        return Icons.remove_circle;
+      case TransactionType.transferOut:
+        return Icons.outbox;
+      case TransactionType.commission:
+        return Icons.percent;
+      case TransactionType.refund:
+        return Icons.undo;
+      case TransactionType.escrowHold:
+        return Icons.lock;
+      case TransactionType.escrowRelease:
+        return Icons.lock_open;
+      case TransactionType.pandascrowFund:
+        return Icons.account_balance_wallet;
+      case TransactionType.pandascrowRelease:
+        return Icons.check_circle;
+      case TransactionType.pandascrowRefund:
+        return Icons.replay;
+      case TransactionType.pandascrowFee:
+        return Icons.receipt_long;
+    }
+  }
+
+  // ── Dispute status / reason colors ───────────────────────────────────
+  static Color disputeStatusColor(DisputeStatus status) {
+    switch (status) {
+      case DisputeStatus.open:
+        return Colors.red;
+      case DisputeStatus.inReview:
+        return Colors.orange;
+      case DisputeStatus.resolved:
+        return Colors.green;
+      case DisputeStatus.closed:
+        return Colors.grey;
+    }
+  }
+
+  static String disputeStatusLabel(DisputeStatus status) {
+    switch (status) {
+      case DisputeStatus.open:
+        return 'Open';
+      case DisputeStatus.inReview:
+        return 'In Review';
+      case DisputeStatus.resolved:
+        return 'Resolved';
+      case DisputeStatus.closed:
+        return 'Closed';
+    }
+  }
+
+  static Color disputeReasonColor(DisputeReason reason) {
+    switch (reason) {
+      case DisputeReason.poorService:
+        return Colors.red;
+      case DisputeReason.notCompleted:
+        return Colors.orange;
+      case DisputeReason.overCharging:
+        return Colors.deepOrange;
+      case DisputeReason.other:
+        return Colors.grey;
+    }
+  }
+}

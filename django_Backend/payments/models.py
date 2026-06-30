@@ -39,8 +39,12 @@ class Transaction(models.Model):
         TRANSFER_OUT = 'TRANSFER_OUT', 'Bank Transfer'
         COMMISSION = 'COMMISSION', 'Commission'
         REFUND = 'REFUND', 'Refund'
-        ESCROW_HOLD = 'ESCROW_HOLD', 'Escrow Hold'
-        ESCROW_RELEASE = 'ESCROW_RELEASE', 'Escrow Release'
+        ESCROW_HOLD = 'ESCROW_HOLD', 'Escrow Hold'         # Legacy: internal wallet escrow
+        ESCROW_RELEASE = 'ESCROW_RELEASE', 'Escrow Release'  # Legacy: internal wallet escrow
+        PANDASCROW_FUND = 'PANDASCROW_FUND', 'Pandascrow Fund'           # Pandascrow escrow funded
+        PANDASCROW_RELEASE = 'PANDASCROW_RELEASE', 'Pandascrow Release'   # Pandascrow escrow completed
+        PANDASCROW_REFUND = 'PANDASCROW_REFUND', 'Pandascrow Refund'     # Pandascrow escrow refunded
+        PANDASCROW_FEE = 'PANDASCROW_FEE', 'Pandascrow Fee'               # Pandascrow fee record
 
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
@@ -56,6 +60,10 @@ class Transaction(models.Model):
     transaction_type = models.CharField(max_length=20, choices=Type.choices, db_index=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
     reference = models.CharField(max_length=100, unique=True, db_index=True)
+    transfer_code = models.CharField(
+        max_length=100, blank=True, null=True, db_index=True,
+        help_text="Paystack transfer code for tracking withdrawal status"
+    )
     job = models.ForeignKey(
         Job,
         on_delete=models.SET_NULL,
@@ -143,3 +151,77 @@ class BankAccount(models.Model):
 
     def __str__(self):
         return f"{self.account_name} - {self.bank_code}/{self.account_number[-4:]}"
+
+
+class PandascrowEscrow(models.Model):
+    """Tracks the relationship between a local Job and a Pandascrow escrow.
+
+    Each job has at most one Pandascrow escrow. If a job has no PandascrowEscrow
+    record but has escrow_held_amount > 0, it uses the legacy internal wallet escrow.
+    """
+    class Status(models.TextChoices):
+        INITIALIZED = 'INITIALIZED', 'Initialized'
+        FUNDED = 'FUNDED', 'Funded'
+        COMPLETED = 'COMPLETED', 'Completed'
+        DISPUTED = 'DISPUTED', 'Disputed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+        REFUNDED = 'REFUNDED', 'Refunded'
+
+    job = models.OneToOneField(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='pandascrow_escrow'
+    )
+    escrow_id = models.CharField(
+        max_length=100,
+        unique=True,
+        db_index=True,
+        help_text="Pandascrow escrow identifier"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.INITIALIZED,
+        db_index=True,
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Escrow amount in NGN"
+    )
+    currency = models.CharField(max_length=3, default='NGN')
+    pandascrow_fee = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Fee charged by Pandascrow"
+    )
+    partner_fee = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Platform commission captured via partner_escrow_fee"
+    )
+    inspection_period = models.IntegerField(
+        default=3,
+        help_text="Inspection period in days"
+    )
+    buyer_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Buyer details sent to Pandascrow"
+    )
+    seller_details = models.JSONField(
+        default=dict, blank=True,
+        help_text="Seller details sent to Pandascrow"
+    )
+    payment_url = models.URLField(
+        max_length=500, blank=True, null=True,
+        help_text="Pandascrow payment URL for customer to complete funding"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['job', 'status'], name='idx_pandascrow_job_status'),
+            models.Index(fields=['escrow_id'], name='idx_pandascrow_escrow_id'),
+        ]
+
+    def __str__(self):
+        return f"PandascrowEscrow {self.escrow_id} - Job #{self.job_id} ({self.status})"

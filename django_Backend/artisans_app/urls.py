@@ -2,8 +2,10 @@ from django.urls import path
 from .views import (
     ArtisanListAPIView, ArtisanDetailAPIView,
     ArtisanProfileUpdateAPIView, ArtisanProfileCreateAPIView,
-    ArtisanNearbySearchAPIView, ProfessionListAPIView
+    ArtisanNearbySearchAPIView, ProfessionListAPIView,
+    PortfolioImageListCreateAPIView, PortfolioImageDetailAPIView
 )
+from bookings.views import ArtisanReviewListView
 
 app_name = 'artisans_app'
 
@@ -12,6 +14,9 @@ urlpatterns = [
     path('nearby/', ArtisanNearbySearchAPIView.as_view(), name='nearby-search'),
     path('professions/', ProfessionListAPIView.as_view(), name='professions'),
     path('create/', ArtisanProfileCreateAPIView.as_view(), name='create'),
+    path('<int:pk>/reviews/', ArtisanReviewListView.as_view(), name='reviews'),
     path('<int:pk>/', ArtisanDetailAPIView.as_view(), name='detail'),
     path('<int:pk>/verify/', ArtisanProfileUpdateAPIView.as_view(), name='verify'),
+    path('portfolio/', PortfolioImageListCreateAPIView.as_view(), name='portfolio-list-create'),
+    path('portfolio/<int:pk>/', PortfolioImageDetailAPIView.as_view(), name='portfolio-detail'),
 ]

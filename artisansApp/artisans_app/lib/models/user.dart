@@ -1,5 +1,6 @@
 // lib/models/user.dart
 import 'package:equatable/equatable.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 enum UserRole { customer, artisan, admin }
 
@@ -84,7 +85,7 @@ class AppUser extends Equatable {
       role: _parseRole(json['role'] as String?),
       isActive: json['is_active'] as bool? ?? false,
       isVerified: json['is_verified'] as bool? ?? false,
-      photoUrl: json['photo_url'] as String?,
+      photoUrl: _resolveUrl(json['photo_url'] as String?),
       artisanProfile: json['artisan_profile'] as Map<String, dynamic>?,
       customerProfile: json['customer_profile'] as Map<String, dynamic>?,
     );
@@ -115,6 +116,16 @@ class AppUser extends Equatable {
       default:
         return UserRole.customer;
     }
+  }
+
+  /// Resolve a relative URL (e.g. "/media/...") to a full absolute URL.
+  /// If the URL is already absolute (starts with http), return it as-is.
+  /// Returns null for null input.
+  static String? _resolveUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http')) return url;
+    final base = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000';
+    return '$base$url';
   }
 }
 

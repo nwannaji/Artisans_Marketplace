@@ -1,6 +1,7 @@
 // lib/services/artisan_api_service.dart
 
 import '../models/artisan.dart';
+import '../models/review.dart';
 import 'api_client.dart';
 
 class ArtisanApiService {
@@ -8,6 +9,7 @@ class ArtisanApiService {
 
   /// List artisans with optional filters
   /// [includeInactive] - when true, includes artisans whose user account is not yet activated (admin use)
+  /// [lat]/[lng] - user coordinates; when provided the server includes `distance_km` per artisan
   Future<List<Artisan>> listArtisans({
     String? profession,
     String? search,
@@ -17,6 +19,8 @@ class ArtisanApiService {
     double? maxRate,
     String? ordering,
     bool includeInactive = false,
+    double? lat,
+    double? lng,
   }) async {
     final queryParams = <String, dynamic>{};
     if (profession != null) queryParams['profession'] = profession;
@@ -27,6 +31,10 @@ class ArtisanApiService {
     if (maxRate != null) queryParams['max_rate'] = maxRate.toString();
     if (ordering != null) queryParams['ordering'] = ordering;
     if (includeInactive) queryParams['is_active'] = 'all';
+    if (lat != null && lng != null) {
+      queryParams['lat'] = lat.toString();
+      queryParams['lng'] = lng.toString();
+    }
 
     final result = await _apiClient.getList('/api/artisans/', queryParams: queryParams.isEmpty ? null : queryParams);
     return result.map((json) => Artisan.fromJson(json as Map<String, dynamic>)).toList();
@@ -132,5 +140,34 @@ class ArtisanApiService {
     };
     if (location != null) body['location'] = location;
     return await _apiClient.patch('/api/auth/me/update-location/', body: body);
+  }
+
+  /// Fetch paginated reviews for an artisan.
+  /// Returns a map containing:
+  /// - 'results': list of Review objects
+  /// - 'summary': RatingSummary with average rating, total count, distribution
+  /// - 'next': URL for next page (or null)
+  /// - 'previous': URL for previous page (or null)
+  /// - 'count': total number of reviews
+  Future<Map<String, dynamic>> getArtisanReviews(int artisanId, {int page = 1}) async {
+    final result = await _apiClient.get(
+      '/api/artisans/$artisanId/reviews/',
+      queryParams: {'page': page.toString()},
+    );
+    // Parse reviews
+    final reviews = (result['results'] as List<dynamic>)
+        .map((json) => Review.fromJson(json as Map<String, dynamic>))
+        .toList();
+    // Parse rating summary
+    final summaryJson = result['summary'] as Map<String, dynamic>?;
+    final summary = summaryJson != null ? RatingSummary.fromJson(summaryJson) : null;
+
+    return {
+      'results': reviews,
+      'summary': summary,
+      'next': result['next'],
+      'previous': result['previous'],
+      'count': result['count'] ?? reviews.length,
+    };
   }
 }

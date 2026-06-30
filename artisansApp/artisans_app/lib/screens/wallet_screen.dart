@@ -1,7 +1,15 @@
 // lib/screens/wallet_screen.dart
 import 'package:artisans_app/models/wallet.dart';
 import 'package:artisans_app/models/bank_account.dart';
+import 'package:artisans_app/models/job.dart';
+import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/services/payment_api_service.dart';
+import 'package:artisans_app/services/booking_api_service.dart';
+import 'package:artisans_app/services/token_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/info_callout.dart';
+import 'package:artisans_app/widgets/drag_handle.dart';
 import 'package:flutter/material.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -13,10 +21,15 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   final PaymentApiService _paymentService = PaymentApiService();
+  final BookingApiService _bookingService = BookingApiService();
+  final TokenService _tokenService = TokenService();
   Wallet? _wallet;
   List<Transaction> _transactions = [];
   List<BankAccount> _bankAccounts = [];
+  List<Job> _activeEscrowJobs = [];
   bool _isLoading = true;
+  bool _isLoadingJobs = false;
+  bool _isCustomer = false;
   String? _error;
 
   @override
@@ -28,17 +41,32 @@ class _WalletScreenState extends State<WalletScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final wallet = await _paymentService.getWallet();
-      final transactions = await _paymentService.listTransactions();
-      final bankAccounts = await _paymentService.listBankAccounts();
+      final results = await Future.wait([
+        _paymentService.getWallet(),
+        _paymentService.listTransactions(),
+        _paymentService.listBankAccounts(),
+        _tokenService.getUserRole(),
+      ]);
+      final wallet = results[0] as Wallet;
+      final transactions = results[1] as List<Transaction>;
+      final bankAccounts = results[2] as List<BankAccount>;
+      final role = results[3] as String?;
+      final isCustomer = role?.toUpperCase() == 'CUSTOMER';
+
       if (mounted) {
         setState(() {
           _wallet = wallet;
           _transactions = transactions;
           _bankAccounts = bankAccounts;
+          _isCustomer = isCustomer;
           _isLoading = false;
           _error = null;
         });
+      }
+
+      // Load active escrow jobs in background (customers only)
+      if (isCustomer) {
+        _loadActiveEscrowJobs();
       }
     } catch (e) {
       if (mounted) {
@@ -46,6 +74,43 @@ class _WalletScreenState extends State<WalletScreen> {
           _isLoading = false;
           _error = e.toString();
         });
+      }
+    }
+  }
+
+  Future<void> _loadActiveEscrowJobs() async {
+    setState(() => _isLoadingJobs = true);
+    try {
+      // Fetch all active jobs without status filter so we include
+      // PENDING and ADMIN_APPROVED bookings that need escrow funding.
+      final allJobs = await _bookingService.listJobs();
+
+      // Keep only non-terminal jobs (anything not cancelled, disputed, or rejected)
+      final relevantJobs = allJobs.where((job) {
+        switch (job.status) {
+          case JobStatus.pending:
+          case JobStatus.adminApproved:
+          case JobStatus.accepted:
+          case JobStatus.inProgress:
+          case JobStatus.awaitingReview:
+          case JobStatus.completed:
+            return true;
+          case JobStatus.cancelled:
+          case JobStatus.disputed:
+          case JobStatus.rejected:
+            return false;
+        }
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _activeEscrowJobs = relevantJobs;
+          _isLoadingJobs = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingJobs = false);
       }
     }
   }
@@ -96,6 +161,18 @@ class _WalletScreenState extends State<WalletScreen> {
         if (mounted) {
           final authUrl = response['authorization_url'] as String?;
           if (authUrl != null) {
+            // SECURITY: Validate that the authorization URL is from Paystack
+            // to prevent phishing redirects if the API response is tampered with.
+            if (!authUrl.startsWith('https://checkout.paystack.co/') &&
+                !authUrl.startsWith('https://standard.paystack.co/')) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Invalid payment URL. Please contact support.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Payment initialized. Please complete payment in the browser.'),
@@ -115,7 +192,7 @@ class _WalletScreenState extends State<WalletScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deposit failed: $e'), backgroundColor: Colors.red),
+            const SnackBar(content: Text('Deposit failed. Please try again.'), backgroundColor: Colors.red),
           );
         }
       }
@@ -251,7 +328,7 @@ class _WalletScreenState extends State<WalletScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Withdrawal failed: $e'),
+              content: const Text('Withdrawal failed. Please try again.'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
             ),
@@ -358,7 +435,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 if (mounted) {
                   messenger.showSnackBar(
                     SnackBar(
-                      content: Text('Failed to add bank account: $e'),
+                      content: const Text('Failed to add bank account. Please try again.'),
                       backgroundColor: Colors.red,
                       duration: const Duration(seconds: 4),
                     ),
@@ -373,28 +450,440 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Color _transactionColor(TransactionType transactionType) {
-    switch (transactionType) {
-      case TransactionType.deposit: return Colors.green;
-      case TransactionType.withdrawal: return Colors.red;
-      case TransactionType.transferOut: return Colors.blue;
-      case TransactionType.commission: return Colors.orange;
-      case TransactionType.refund: return Colors.purple;
-      case TransactionType.escrowHold: return Colors.indigo;
-      case TransactionType.escrowRelease: return Colors.teal;
+
+  String _escrowActionLabel(Job job) {
+    final hasEscrow = job.escrowHeldAmount > 0;
+    if (!hasEscrow) {
+      if (job.status == JobStatus.pending) return 'Fund Escrow';
+      if (job.status == JobStatus.adminApproved) return 'Fund Escrow';
+      return 'Fund Escrow';
+    }
+    if (job.status == JobStatus.awaitingReview ||
+        job.status == JobStatus.completed) {
+      return 'Release Payment';
+    }
+    return 'View';
+  }
+
+  Color _escrowActionColor(Job job) {
+    final hasEscrow = job.escrowHeldAmount > 0;
+    if (!hasEscrow) {
+      if (job.status == JobStatus.pending) return Colors.amber;
+      if (job.status == JobStatus.adminApproved) return Colors.lightBlue;
+      return Colors.green;
+    }
+    if (job.status == JobStatus.awaitingReview ||
+        job.status == JobStatus.completed) {
+      return Colors.teal;
+    }
+    return Colors.grey;
+  }
+
+  /// Jobs that haven't funded escrow yet (any active status without escrow held).
+  List<Job> get _unfundedJobs => _activeEscrowJobs
+      .where((j) => j.escrowHeldAmount == 0 &&
+          j.status != JobStatus.completed &&
+          j.status != JobStatus.awaitingReview)
+      .toList();
+
+  /// Jobs that have escrow funded and may need release.
+  List<Job> get _fundedJobs => _activeEscrowJobs
+      .where((j) => j.escrowHeldAmount > 0)
+      .toList();
+
+  /// Show a bottom sheet listing unfunded jobs so the customer can fund escrow.
+  void _showPayViaEscrowSheet() {
+    final unfunded = _unfundedJobs;
+
+    if (unfunded.isEmpty && _activeEscrowJobs.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Pay via Escrow'),
+          content: const Text(
+            'No bookings found. Book an artisan first, then fund escrow from here.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (unfunded.isEmpty) {
+      // All active jobs already have escrow — show helpful message
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Pay via Escrow'),
+          content: const Text(
+            'All your active bookings already have escrow funded. '
+            'Check the "Release Payment" section to release funds when the job is done.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            const DragHandle(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.verified_user, color: Colors.indigo, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Pay via Escrow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text('Your payment is held safely until the job is done',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: unfunded.length,
+                itemBuilder: (context, index) {
+                  final job = unfunded[index];
+                  final artisanName = job.artisanUsername ?? 'Artisan';
+                  final isPending = job.status == JobStatus.pending;
+                  final isAdminApproved = job.status == JobStatus.adminApproved;
+                  final statusHint = isPending
+                      ? 'Awaiting admin approval'
+                      : isAdminApproved
+                          ? 'Awaiting artisan acceptance'
+                          : null;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: Colors.indigo.withValues(alpha: 0.1),
+                                child: Text(
+                                  artisanName[0].toUpperCase(),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(artisanName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    Text(
+                                      job.description.length > 50
+                                          ? '${job.description.substring(0, 50)}...'
+                                          : job.description,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              StatusBadge.outlined(
+                                label: job.status.label,
+                                color: AppColors.jobStatusColor(job.status),
+                              ),
+                            ],
+                          ),
+                          if (statusHint != null) ...[
+                            const SizedBox(height: 6),
+                            InfoCallout.warning(message: statusHint),
+                          ],
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Text(
+                                '₦${job.agreedPrice.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.lock, size: 16),
+                                label: const Text('Fund Escrow'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _escrowActionColor(job),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(context); // Close bottom sheet
+                                  _navigateToEscrow(job);
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Navigate to the EscrowPaymentScreen for a given job.
+  void _navigateToEscrow(Job job) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EscrowPaymentScreen(
+          jobId: job.id,
+          agreedPrice: job.agreedPrice,
+          job: job,
+        ),
+      ),
+    );
+    if (result == true && mounted) {
+      _loadData();
     }
   }
 
-  IconData _transactionIcon(TransactionType transactionType) {
-    switch (transactionType) {
-      case TransactionType.deposit: return Icons.add_circle;
-      case TransactionType.withdrawal: return Icons.remove_circle;
-      case TransactionType.transferOut: return Icons.outbox;
-      case TransactionType.commission: return Icons.percent;
-      case TransactionType.refund: return Icons.undo;
-      case TransactionType.escrowHold: return Icons.lock;
-      case TransactionType.escrowRelease: return Icons.lock_open;
+  Widget _buildActiveEscrowSection() {
+    if (!_isCustomer) return const SizedBox.shrink();
+
+    // Show loading state
+    if (_isLoadingJobs) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Active Escrow',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            const Center(child: CircularProgressIndicator()),
+          ],
+        ),
+      );
     }
+
+    // No active escrow jobs
+    if (_activeEscrowJobs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Active Escrow',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.verified_user_outlined, color: Colors.grey),
+                title: Text('No active escrow'),
+                subtitle: Text('Your escrow payments will appear here when you fund a job.'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final unfunded = _unfundedJobs;
+    final funded = _fundedJobs;
+
+    // Separate pending/approved jobs from accepted/in-progress ones
+    final pendingJobs = unfunded.where((j) =>
+        j.status == JobStatus.pending || j.status == JobStatus.adminApproved).toList();
+    final fundableJobs = unfunded.where((j) =>
+        j.status == JobStatus.accepted || j.status == JobStatus.inProgress).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Active Escrow',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+
+          // Awaiting Confirmation sub-section (PENDING / ADMIN_APPROVED)
+          if (pendingJobs.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 16, color: Colors.amber[700]),
+                const SizedBox(width: 4),
+                Text(
+                  'Awaiting Confirmation',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.amber[700]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...pendingJobs.map((job) => _buildEscrowJobCard(job)),
+            if (fundableJobs.isNotEmpty || funded.isNotEmpty) const SizedBox(height: 12),
+          ],
+
+          // Fund Escrow sub-section (ACCEPTED / IN_PROGRESS, no escrow yet)
+          if (fundableJobs.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.lock, size: 16, color: Colors.green[700]),
+                const SizedBox(width: 4),
+                Text(
+                  'Fund Escrow',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.green[700]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...fundableJobs.map((job) => _buildEscrowJobCard(job)),
+            if (funded.isNotEmpty) const SizedBox(height: 12),
+          ],
+
+          // Release Payment sub-section
+          if (funded.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.lock_open, size: 16, color: Colors.teal[700]),
+                const SizedBox(width: 4),
+                Text(
+                  'Release Payment',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.teal[700]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...funded.map((job) => _buildEscrowJobCard(job)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEscrowJobCard(Job job) {
+    final hasEscrow = job.escrowHeldAmount > 0;
+    final actionLabel = _escrowActionLabel(job);
+    final actionColor = _escrowActionColor(job);
+    final isPending = job.status == JobStatus.pending;
+    final isAdminApproved = job.status == JobStatus.adminApproved;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Job #${job.id} — ${job.description.length > 40 ? '${job.description.substring(0, 40)}...' : job.description}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                StatusBadge.outlined(
+                  label: job.status.label,
+                  color: AppColors.jobStatusColor(job.status),
+                ),
+              ],
+            ),
+            if (isPending || isAdminApproved) ...[
+              const SizedBox(height: 6),
+              InfoCallout.warning(
+                message: isPending
+                    ? 'Awaiting admin approval. Escrow will be held until the artisan accepts.'
+                    : 'Awaiting artisan acceptance. Escrow will be held until the job starts.',
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Agreed: ₦${job.agreedPrice.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                if (hasEscrow) ...[
+                  const SizedBox(width: 16),
+                  Text(
+                    'In escrow: ₦${job.escrowHeldAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: Icon(
+                  hasEscrow ? Icons.lock_open : Icons.lock,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                label: Text(actionLabel),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: actionColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onPressed: () => _navigateToEscrow(job),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -476,6 +965,23 @@ class _WalletScreenState extends State<WalletScreen> {
                                   ),
                                 ],
                               ),
+                              if (_isCustomer) ...[
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.verified_user, size: 18),
+                                    label: const Text('Pay via Escrow'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.indigo,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                    onPressed: _isLoadingJobs ? null : _showPayViaEscrowSheet,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -547,7 +1053,7 @@ class _WalletScreenState extends State<WalletScreen> {
                                                 } catch (e) {
                                                   if (mounted) {
                                                     messenger.showSnackBar(
-                                                      SnackBar(content: Text('Verification failed: $e'), backgroundColor: Colors.red),
+                                                      const SnackBar(content: Text('Verification failed. Please try again.'), backgroundColor: Colors.red),
                                                     );
                                                   }
                                                 }
@@ -559,6 +1065,9 @@ class _WalletScreenState extends State<WalletScreen> {
                                 ),
                               ),
                       ),
+
+                      // Active Escrow section (customers only)
+                      SliverToBoxAdapter(child: _buildActiveEscrowSection()),
 
                       // Transactions header
                       SliverToBoxAdapter(
@@ -582,8 +1091,8 @@ class _WalletScreenState extends State<WalletScreen> {
                               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: _transactionColor(tx.transactionType).withValues(alpha: 0.15),
-                                  child: Icon(_transactionIcon(tx.transactionType), color: _transactionColor(tx.transactionType), size: 20),
+                                  backgroundColor: AppColors.transactionColor(tx.transactionType).withValues(alpha: 0.15),
+                                  child: Icon(AppColors.transactionIcon(tx.transactionType), color: AppColors.transactionColor(tx.transactionType), size: 20),
                                 ),
                                 title: Text(
                                   tx.transactionType.label,

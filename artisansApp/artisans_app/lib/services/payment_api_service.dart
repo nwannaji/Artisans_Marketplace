@@ -45,6 +45,16 @@ class PaymentApiService {
     return await _apiClient.post('/api/payments/escrow/$jobId/release/');
   }
 
+  /// Get escrow status (for polling after Pandascrow payment)
+  Future<Map<String, dynamic>> getEscrowStatus(int jobId) async {
+    return await _apiClient.get('/api/payments/escrow/$jobId/status/');
+  }
+
+  /// Submit OTP for Pandascrow escrow release
+  Future<Map<String, dynamic>> submitEscrowReleaseOtp(int jobId, String otp) async {
+    return await _apiClient.post('/api/payments/escrow/$jobId/release/otp/', body: {'otp': otp});
+  }
+
   /// Initiate a Paystack payment
   Future<Map<String, dynamic>> initiatePaystackPayment({
     required double amount,

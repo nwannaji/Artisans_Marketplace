@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
+import 'package:artisans_app/services/location_service.dart';
 import 'package:artisans_app/viewmodels/profile_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,9 +30,12 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
   final _scrollController = ScrollController();
 
   List<String> _skills = [];
+  double? _latitude;
+  double? _longitude;
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isUploadingPicture = false;
+  bool _isDetectingLocation = false;
 
   @override
   void initState() {
@@ -51,6 +55,8 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
         final location = artisanProfile['location'] as String?;
         final bio = artisanProfile['bio'] as String?;
         final skills = artisanProfile['skills'];
+        final latitude = artisanProfile['latitude'];
+        final longitude = artisanProfile['longitude'];
 
         if (profession != null && profession.isNotEmpty) {
           _professionController.text = profession;
@@ -69,6 +75,13 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
         }
         if (skills is List && skills.isNotEmpty) {
           _skills = skills.whereType<String>().toList();
+        }
+        // Load stored coordinates
+        if (latitude != null) {
+          _latitude = latitude is String ? double.tryParse(latitude) : (latitude as num?)?.toDouble();
+        }
+        if (longitude != null) {
+          _longitude = longitude is String ? double.tryParse(longitude) : (longitude as num?)?.toDouble();
         }
       }
     } catch (e) {
@@ -195,6 +208,47 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
     });
   }
 
+  // --- Location detection ---
+
+  Future<void> _detectLocation() async {
+    setState(() => _isDetectingLocation = true);
+    try {
+      final locationService = LocationService();
+      final result = await locationService.getCurrentLocationWithAddress();
+      if (result != null && mounted) {
+        setState(() {
+          _latitude = result.latitude;
+          _longitude = result.longitude;
+          _locationController.text = result.address;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location detected successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not detect your location. Please check location permissions.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDetectingLocation = false);
+    }
+  }
+
   // --- Save profile ---
 
   Future<void> _saveProfile() async {
@@ -214,6 +268,10 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
       if (rate != null) {
         data['hourly_rate'] = rate.toString();
       }
+
+      // Include coordinates if available
+      if (_latitude != null) data['latitude'] = _latitude.toString();
+      if (_longitude != null) data['longitude'] = _longitude.toString();
 
       final authService = AuthApiService();
       await authService.updateMyArtisanProfile(data);
@@ -395,13 +453,32 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
                     // --- Location ---
                     TextFormField(
                       controller: _locationController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Location',
-                        prefixIcon: Icon(Icons.location_on),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.location_on),
+                        border: const OutlineInputBorder(),
                         hintText: 'e.g. Lagos, Ikeja',
+                        suffixIcon: IconButton(
+                          icon: _isDetectingLocation
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.my_location),
+                          tooltip: 'Detect my location',
+                          onPressed: _isDetectingLocation ? null : _detectLocation,
+                        ),
                       ),
                     ),
+                    if (_latitude != null && _longitude != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 12),
+                        child: Text(
+                          '$_latitude, $_longitude',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        ),
+                      ),
                     const SizedBox(height: 16),
 
                     // --- Bio ---

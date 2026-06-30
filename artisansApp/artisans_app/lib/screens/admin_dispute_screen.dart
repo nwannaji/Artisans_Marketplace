@@ -1,7 +1,9 @@
 // lib/screens/admin_dispute_screen.dart
 import 'package:artisans_app/models/dispute.dart';
-import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/dispute_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/widgets/status_badge.dart';
 import 'package:flutter/material.dart';
 
 class AdminDisputeScreen extends StatefulWidget {
@@ -159,24 +161,6 @@ class _AdminDisputeScreenState extends State<AdminDisputeScreen> {
     }
   }
 
-  Color _statusColor(DisputeStatus status) {
-    switch (status) {
-      case DisputeStatus.open: return Colors.red;
-      case DisputeStatus.inReview: return Colors.orange;
-      case DisputeStatus.resolved: return Colors.green;
-      case DisputeStatus.closed: return Colors.grey;
-    }
-  }
-
-  String _statusLabel(DisputeStatus status) {
-    switch (status) {
-      case DisputeStatus.open: return 'Open';
-      case DisputeStatus.inReview: return 'In Review';
-      case DisputeStatus.resolved: return 'Resolved';
-      case DisputeStatus.closed: return 'Closed';
-    }
-  }
-
   String _reasonLabel(DisputeReason reason) {
     switch (reason) {
       case DisputeReason.poorService: return 'Poor Service';
@@ -278,28 +262,16 @@ class _AdminDisputeScreenState extends State<AdminDisputeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Job #${dispute.jobId}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _statusColor(dispute.status).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _statusColor(dispute.status).withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    _statusLabel(dispute.status),
-                    style: TextStyle(color: _statusColor(dispute.status), fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
+                StatusBadge.outlined(
+                  label: AppColors.disputeStatusLabel(dispute.status),
+                  color: AppColors.disputeStatusColor(dispute.status),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(_reasonLabel(dispute.reason), style: const TextStyle(fontSize: 12)),
+            StatusBadge.outlined(
+              label: _reasonLabel(dispute.reason),
+              color: AppColors.disputeReasonColor(dispute.reason),
             ),
             const SizedBox(height: 8),
             Text(dispute.details, maxLines: 3, overflow: TextOverflow.ellipsis),

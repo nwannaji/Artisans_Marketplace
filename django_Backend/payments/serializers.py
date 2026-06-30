@@ -1,13 +1,15 @@
 from rest_framework import serializers
-from .models import Wallet, Transaction, AppSettings, BankAccount
+from .models import Wallet, Transaction, AppSettings, BankAccount, PandascrowEscrow
 from accounts.models import User
 from bookings.models import Job
 
 
 class WalletSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+
     class Meta:
         model = Wallet
-        fields = ['user', 'balance', 'created_at', 'updated_at']
+        fields = ['user_id', 'balance', 'created_at', 'updated_at']
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -38,6 +40,18 @@ class EscrowFundSerializer(serializers.Serializer):
     """Serializer for funding a job escrow. Amount defaults to job.agreed_price if not provided."""
     amount = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
+    inspection_period = serializers.IntegerField(
+        required=False, default=3, min_value=1, max_value=30,
+        help_text="Number of days for buyer inspection (default: 3)"
+    )
+
+
+class EscrowReleaseOtpSerializer(serializers.Serializer):
+    """Serializer for submitting OTP for Pandascrow escrow release."""
+    otp = serializers.CharField(
+        max_length=10, required=True,
+        help_text="One-time password from Pandascrow for escrow release confirmation"
     )
 
 
@@ -82,3 +96,27 @@ class WithdrawalSerializer(serializers.Serializer):
         if value <= 0:
             raise serializers.ValidationError("Amount must be positive.")
         return value
+
+
+class PandascrowEscrowSerializer(serializers.ModelSerializer):
+    """Serializer for PandascrowEscrow model — read-only for API responses."""
+    customer_username = serializers.CharField(source='job.customer.username', read_only=True)
+    artisan_username = serializers.CharField(
+        source='job.artisan.user.username', read_only=True, default=None
+    )
+    job_description = serializers.CharField(source='job.description', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = PandascrowEscrow
+        fields = [
+            'id', 'escrow_id', 'job', 'status', 'status_display', 'amount', 'currency',
+            'pandascrow_fee', 'partner_fee', 'payment_url',
+            'inspection_period', 'buyer_details', 'seller_details',
+            'created_at', 'updated_at',
+            'customer_username', 'artisan_username', 'job_description',
+        ]
+        read_only_fields = [
+            'escrow_id', 'status', 'pandascrow_fee', 'partner_fee',
+            'payment_url', 'created_at', 'updated_at',
+        ]

@@ -2,6 +2,29 @@
 from rest_framework import serializers
 from accounts.models import ArtisanProfile
 from bookings.models import Job
+from .models_portfolio import PortfolioImage
+
+
+class PortfolioImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PortfolioImage
+        fields = ['id', 'artisan', 'image', 'caption', 'order', 'uploaded_at']
+        read_only_fields = ['artisan', 'uploaded_at']
+
+    def validate_image(self, value):
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+        if value.content_type not in allowed_types:
+            raise serializers.ValidationError(
+                "Unsupported image type. Allowed types: JPG, JPEG, PNG, WEBP."
+            )
+        # Validate file size (max 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB
+        if value.size > max_size:
+            raise serializers.ValidationError(
+                "Image file size must be under 5MB."
+            )
+        return value
 
 
 class ArtisanProfileSerializer(serializers.ModelSerializer):

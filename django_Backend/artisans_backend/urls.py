@@ -20,6 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView
+from accounts.permissions import IsAdminRole
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,6 +32,8 @@ urlpatterns = [
     path('api/chats/', include('chats.urls')),
     path('api/payments/', include('payments.urls')),
     path('api/disputes/', include('disputes.urls')),
-    path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='schema-swagger-ui'),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/notifications/', include('notifications.urls')),
+    # SECURITY: Swagger UI restricted to admin users in production
+    path('swagger/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='schema-swagger-ui'),
+    path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminRole]), name='schema'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

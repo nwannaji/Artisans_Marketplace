@@ -36,9 +36,10 @@ class BookingApiService {
   }
 
   /// Update job status (IN_PROGRESS, COMPLETED, CANCELLED, DISPUTED)
-  Future<Job> updateJobStatus(int pk, String status) async {
-    final result = await _apiClient.patch('/api/bookings/$pk/status/', body: {'status': status});
-    return Job.fromJson(result);
+  /// Returns the raw response map so callers can check for extra fields
+  /// like `escrow_released` and `escrow_release_otp_required`.
+  Future<Map<String, dynamic>> updateJobStatus(int pk, String status) async {
+    return await _apiClient.patch('/api/bookings/$pk/status/', body: {'status': status});
   }
 
   /// Admin approve a PENDING job

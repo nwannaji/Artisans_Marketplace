@@ -45,3 +45,40 @@ class Dispute(models.Model):
 
     def __str__(self):
         return f"Dispute for Job #{self.job.id} - {self.get_reason_display()}"
+
+
+class EvidenceFile(models.Model):
+    """File attachment for dispute evidence (photos, documents, etc.)."""
+    dispute = models.ForeignKey(
+        Dispute,
+        on_delete=models.CASCADE,
+        related_name='evidence_files'
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='uploaded_evidence'
+    )
+    file = models.FileField(
+        upload_to='dispute_evidence/%Y/%m/',
+        help_text='Evidence file (image or document)'
+    )
+    caption = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Optional description of the evidence'
+    )
+    file_type = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text='MIME type of the uploaded file'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Evidence File'
+        verbose_name_plural = 'Evidence Files'
+
+    def __str__(self):
+        return f"Evidence for Dispute #{self.dispute_id} - {self.caption or self.file.name}"

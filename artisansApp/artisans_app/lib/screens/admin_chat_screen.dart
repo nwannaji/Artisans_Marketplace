@@ -1,7 +1,7 @@
 // lib/screens/admin_chat_screen.dart
 import 'package:artisans_app/models/conversation.dart';
 import 'package:artisans_app/models/message.dart';
-import 'package:artisans_app/screens/scattered_background_image.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/chat_api_service.dart';
 import 'package:flutter/material.dart';
 

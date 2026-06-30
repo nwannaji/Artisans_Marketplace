@@ -3,6 +3,9 @@ import 'package:artisans_app/models/conversation.dart';
 import 'package:artisans_app/screens/chat_screen.dart';
 import 'package:artisans_app/services/chat_api_service.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/theme/app_spacing.dart';
+import 'package:artisans_app/widgets/empty_state.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -79,27 +82,25 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Error: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadConversations, child: const Text('Retry')),
-                    ],
-                  ),
+              ? ErrorState(
+                  message: _error!,
+                  onRetry: _loadConversations,
                 )
               : _conversations.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
                       onRefresh: _loadConversations,
                       child: ListView.builder(
-                          itemCount: _conversations.length,
-                          itemBuilder: (context, index) {
-                            final conversation = _conversations[index];
-                            return _buildConversationTile(conversation);
-                          },
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.sm,
                         ),
+                        itemCount: _conversations.length,
+                        itemBuilder: (context, index) {
+                          final conversation = _conversations[index];
+                          return _buildConversationCard(conversation);
+                        },
+                      ),
                     ),
     );
   }
@@ -107,102 +108,112 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget _buildEmptyState() {
     final isArtisan = _userRole == 'ARTISAN';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isArtisan ? Icons.chat_bubble_outline : Icons.search,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isArtisan
-                  ? 'No messages yet'
-                  : 'No conversations yet',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isArtisan
-                  ? 'When customers message you, your conversations will appear here.'
-                  : 'Find an artisan and start a conversation!',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-            if (!isArtisan) ...[
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.search),
-                label: const Text('Find Artisans'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/user_home');
-                },
+    return EmptyState(
+      icon: isArtisan ? Icons.chat_bubble_outline : Icons.search,
+      title: isArtisan ? 'No messages yet' : 'No conversations yet',
+      subtitle: isArtisan
+          ? 'When customers message you, your conversations will appear here.'
+          : 'Find an artisan and start a conversation!',
+      action: !isArtisan
+          ? ElevatedButton.icon(
+              icon: const Icon(Icons.search),
+              label: const Text('Find Artisans'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-            ],
-          ],
-        ),
-      ),
+              onPressed: () {
+                Navigator.pushReplacementNamed(context, '/user_home');
+              },
+            )
+          : null,
     );
   }
 
-  Widget _buildConversationTile(Conversation conversation) {
+  Widget _buildConversationCard(Conversation conversation) {
     final lastMessage = conversation.lastMessage;
     final timeString = lastMessage != null && lastMessage['timestamp'] != null
         ? DateFormat('MMM dd, hh:mm a').format(DateTime.parse(lastMessage['timestamp'] as String))
         : '';
     final hasUnread = conversation.unreadCount > 0;
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Theme.of(context).primaryColor,
-        child: Text(
-          (conversation.artisanUsername ?? '?')[0].toUpperCase(),
-          style: const TextStyle(color: Colors.white),
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: () => _openConversation(conversation),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              // Avatar
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                child: Text(
+                  (conversation.artisanUsername ?? '?')[0].toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              // Name + message preview
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            conversation.artisanUsername ?? 'Conversation #${conversation.id}',
+                            style: TextStyle(
+                              fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        if (hasUnread)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${conversation.unreadCount}',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      lastMessage != null
+                          ? (lastMessage['message'] as String? ?? '')
+                          : 'No messages yet',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              // Timestamp
+              Text(
+                timeString,
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
         ),
       ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              conversation.artisanUsername ?? 'Conversation #${conversation.id}',
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-          if (hasUnread)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '${conversation.unreadCount}',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-        ],
-      ),
-      subtitle: lastMessage != null
-          ? Text(
-              lastMessage['message'] as String? ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-              ),
-            )
-          : const Text('No messages yet'),
-      trailing: Text(timeString, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      onTap: () => _openConversation(conversation),
     );
   }
 }

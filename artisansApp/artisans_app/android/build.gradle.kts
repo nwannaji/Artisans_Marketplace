@@ -1,18 +1,17 @@
 // android/build.gradle.kts
 
 buildscript {
-    val kotlin_version = "1.8.21"// Updated Kotlin version
+    val kotlinVersion = "1.8.21"
+    val agpVersion = "8.7.3"
+
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
-        classpath("com.android.tools.build:gradle:8.7.3")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.21")
-        classpath ("com.google.gms:google-services:4.3.15")
-
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("com.android.tools.build:gradle:$agpVersion")
     }
 }
 
@@ -20,6 +19,17 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+
+    // Force all subprojects to use the same AGP version
+    // This prevents plugin conflicts where subplugins try to download different AGP versions
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "com.android.tools.build") {
+                useVersion("8.7.3")
+                because("Force all subprojects to use the same AGP version")
+            }
+        }
     }
 }
 

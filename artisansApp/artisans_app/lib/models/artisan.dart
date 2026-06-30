@@ -1,5 +1,7 @@
 // lib/models/artisan.dart
+import 'dart:math' as math;
 import 'package:equatable/equatable.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Artisan extends Equatable {
   final int id;
@@ -132,7 +134,7 @@ class Artisan extends Equatable {
       id: json['id'] as int,
       userId: json['user'] as int,
       username: json['user_username'] as String?,
-      profilePicture: json['profile_picture'] as String?,
+      profilePicture: _resolveUrl(json['profile_picture'] as String?),
       bio: json['bio'] as String?,
       profession: json['profession'] as String?,
       skills: json['skills'] as List<dynamic>? ?? [],
@@ -176,10 +178,49 @@ class Artisan extends Equatable {
     return null;
   }
 
+  /// Resolve a relative URL (e.g. "/media/...") to a full absolute URL.
+  /// If the URL is already absolute (starts with http), return it as-is.
+  /// Returns null for null input.
+  static String? _resolveUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http')) return url;
+    final base = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000';
+    return '$base$url';
+  }
+
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
     if (value is DateTime) return value;
     if (value is String) return DateTime.tryParse(value);
     return null;
+  }
+
+  /// Compute haversine distance in km between two lat/lng points.
+  static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+    const double r = 6371.0; // Earth radius in km
+    final double dLat = _toRad(lat2 - lat1);
+    final double dLng = _toRad(lng2 - lng1);
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRad(lat1)) * math.cos(_toRad(lat2)) *
+        math.sin(dLng / 2) * math.sin(dLng / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return r * c;
+  }
+
+  static double _toRad(double deg) => deg * math.pi / 180.0;
+
+  /// Compute distance from a given user position.
+  /// Prioritises server-provided distanceKm (if meaningful),
+  /// falls back to client-side haversine using artisan's lat/lng,
+  /// returns null if no data is available.
+  double? computeDistanceKm(double userLat, double userLng) {
+    // Use server-provided distance if it's meaningful (> 50m)
+    if (distanceKm != null && distanceKm! > 0.05) return distanceKm;
+    // Fall back to client-side haversine
+    if (latitude != null && longitude != null) {
+      return haversineKm(userLat, userLng, latitude!, longitude!);
+    }
+    // No data available
+    return distanceKm; // may be null or a small value like 0.0
   }
 }

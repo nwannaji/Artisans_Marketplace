@@ -1,7 +1,7 @@
-import 'package:artisans_app/screens/scattered_background_image.dart';
-import 'package:artisans_app/services/api_exception.dart';
+import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:flutter/material.dart';
-import 'package:artisans_app/services/auth_api_service.dart';
+import 'package:provider/provider.dart';
+import 'package:artisans_app/viewmodels/auth_view_model.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -23,8 +23,6 @@ class _SignupPageState extends State<SignupPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
-  final AuthApiService _authService = AuthApiService();
-
   bool get _isArtisan => selectedRole == 'ARTISAN';
 
   String? _validatePassword(String? value) {
@@ -40,7 +38,8 @@ class _SignupPageState extends State<SignupPage> {
 
     setState(() => isLoading = true);
     try {
-      final response = await _authService.register(
+      final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+      final response = await authViewModel.signUp(
         username: usernameController.text.trim(),
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
@@ -52,10 +51,10 @@ class _SignupPageState extends State<SignupPage> {
 
       if (!context.mounted) return;
 
-      if (response.containsKey('tokens')) {
+      if (response != null && response.containsKey('tokens')) {
         // Customer accounts are auto-activated — go to home
         Navigator.pushReplacementNamed(context, '/user_home');
-      } else {
+      } else if (response != null) {
         // Artisan/Admin accounts need admin approval
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -64,22 +63,21 @@ class _SignupPageState extends State<SignupPage> {
           ),
         );
         Navigator.pushReplacementNamed(context, '/login');
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) {
+      } else {
+        // signUp returned null — show error from ViewModel
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.fullMessage, style: const TextStyle(fontSize: 13)),
+            content: Text(authViewModel.errorMessage ?? 'Signup failed. Please try again.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
+        // SECURITY: Don't expose raw exception details to the user
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Signup failed: ${e.toString()}"),
+          const SnackBar(
+            content: Text('Signup failed. Please check your details and try again.'),
             backgroundColor: Colors.red,
           ),
         );

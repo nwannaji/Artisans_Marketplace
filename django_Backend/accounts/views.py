@@ -1,10 +1,14 @@
 import logging
+import random
 
 from django.contrib.auth import login
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.uploadedfile import InMemoryUploadedFile
+from django.core.mail import send_mail
 from django.db.models import Count, Avg
+from django.utils import timezone
 from rest_framework import generics, permissions, status, serializers as drf_serializers
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -13,14 +17,17 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 from .permissions import IsAdminRole
+from .throttling import LoginRateThrottle, RegisterRateThrottle, PasswordChangeRateThrottle, PasswordResetRateThrottle
 
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
     CustomerProfileSerializer,
     ArtisanProfileSelfUpdateSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
 )
-from .models import User, ArtisanProfile, CustomerProfile
+from .models import User, ArtisanProfile, CustomerProfile, OTPVerification
 from bookings.models import Job
 
 logger = logging.getLogger(__name__)
@@ -31,6 +38,7 @@ class UserRegistrationAPIView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
     authentication_classes = []  # Skip auth — registration is anonymous
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -61,6 +69,7 @@ class UserLoginAPIView(generics.GenericAPIView):
     serializer_class = UserLoginSerializer
     authentication_classes = []  # Skip auth — login is anonymous; stale tokens in header must not cause 401
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -222,6 +231,7 @@ class ArtisanProfileSelfUpdateView(APIView):
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PasswordChangeRateThrottle]
 
     def post(self, request):
         user = request.user
@@ -252,6 +262,39 @@ class ChangePasswordView(APIView):
         user.set_password(new_password)
         user.save()
         return Response({'message': 'Password changed successfully'})
+
+
+class LogoutView(APIView):
+    """Logout the current user by blacklisting their refresh token.
+
+    This invalidates the refresh token so it cannot be used to obtain
+    new access tokens. The access token remains valid until it expires
+    naturally (60 minutes by default).
+
+    POST /api/auth/logout/ with {"refresh": "<refresh_token>"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response(
+                {'error': 'Refresh token is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from rest_framework_simplejwt.tokens import RefreshToken
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except Exception as e:
+            logger.warning("Logout blacklist failed for user %s: %s", request.user.pk, e)
+            return Response(
+                {'error': 'Invalid or already blacklisted token'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({'message': 'Logout successful'})
 
 
 class ArtisanAvailabilityToggleView(APIView):
@@ -579,6 +622,20 @@ class ProfilePictureUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # SECURITY: Validate actual file content (magic bytes) to prevent
+        # uploading HTML/SVG disguised as an image (stored XSS attack).
+        try:
+            from PIL import Image
+            img = Image.open(image)
+            img.verify()  # Verify it's a valid image by decoding headers
+            image.seek(0)  # Reset file pointer after verify
+        except Exception as e:
+            logger.warning("Upload picture: invalid image content for user %s: %s", user.pk, e)
+            return Response(
+                {'error': 'The file is not a valid image. Please upload a real image file (JPG, PNG, WebP, GIF).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Convert HEIC/HEIF to JPEG before saving (Pillow doesn't support HEIC natively)
         if file_ext in ('heic', 'heif'):
             try:
@@ -650,4 +707,285 @@ class ProfilePictureUploadView(APIView):
         return Response({
             'message': 'Profile picture updated successfully',
             'photo_url': profile.profile_picture.url if profile.profile_picture else None,
+        })
+
+
+class ForgotPasswordView(APIView):
+    """Request a password reset OTP.
+
+    Accepts either `email` or `username`. If the account exists, a 6-digit
+    OTP is generated and sent to the user's registered email address.
+    The response is always generic to avoid revealing whether the account exists.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data.get('user')
+
+        # Always return the same generic message so we don't
+        # reveal whether the email/username exists.
+        generic_message = (
+            "If an account with that email or username exists, "
+            "a password reset OTP has been sent to the registered email."
+        )
+
+        if user is None:
+            # User not found — still return success to avoid enumeration
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        # Delete any existing OTPs for this user + purpose before creating a new one
+        OTPVerification.objects.filter(
+            user=user,
+            purpose=OTPVerification.Purpose.PASSWORD_RESET,
+        ).delete()
+
+        # Generate a 6-digit OTP
+        otp_code = f"{random.randint(100000, 999999)}"
+        expires_at = timezone.now() + timezone.timedelta(minutes=15)
+
+        OTPVerification.objects.create(
+            user=user,
+            otp=otp_code,
+            purpose=OTPVerification.Purpose.PASSWORD_RESET,
+            expires_at=expires_at,
+        )
+
+        # Send the OTP via email
+        try:
+            send_mail(
+                subject="Your Password Reset OTP",
+                message=(
+                    f"Hello {user.username},\n\n"
+                    f"Your password reset OTP is: {otp_code}\n\n"
+                    f"This OTP expires in 15 minutes.\n"
+                    f"If you did not request a password reset, please ignore this email."
+                ),
+                from_email=None,  # Uses DEFAULT_FROM_EMAIL from settings
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            logger.exception("Failed to send password reset OTP email to user %s", user.pk)
+            # Don't reveal the error to the client
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    """Reset password using the OTP sent to the user's email.
+
+    Accepts `otp`, `new_password`, `new_password2`. Validates the OTP,
+    checks it hasn't expired, and resets the user's password.
+    """
+    permission_classes = [AllowAny]
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        otp_record = serializer.validated_data['otp_record']
+        user = serializer.validated_data['user']
+
+        # Reset the user's password
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+
+        # Mark OTP as used
+        otp_record.is_used = True
+        otp_record.save(update_fields=['is_used'])
+
+        logger.info("Password reset successful for user %s (pk=%s)", user.username, user.pk)
+
+        return Response(
+            {'message': 'Password has been reset successfully.'},
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerificationDocumentUploadView(APIView):
+    """Allow artisans to upload verification documents (ID card, certificates, etc.).
+
+    POST /api/auth/me/verification-documents/
+    Accepts multipart form data with a 'document' file field.
+    Files are saved to media/verification/ and URLs stored in the
+    ArtisanProfile.verification_documents JSONField.
+
+    GET /api/auth/me/verification-documents/
+    Returns the list of currently uploaded verification document URLs.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    # SECURITY: Allowed file types and size limits
+    ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf']
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    MAX_DOCUMENTS = 5  # Maximum number of verification documents per artisan
+
+    def get(self, request):
+        """List the artisan's current verification documents."""
+        if request.user.role != User.Role.ARTISAN:
+            return Response(
+                {'error': 'Only artisan accounts can upload verification documents.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            profile = request.user.artisanprofile
+        except ArtisanProfile.DoesNotExist:
+            return Response(
+                {'error': 'Artisan profile not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        documents = profile.verification_documents or []
+        return Response({'documents': documents})
+
+    def post(self, request):
+        """Upload a new verification document."""
+        if request.user.role != User.Role.ARTISAN:
+            return Response(
+                {'error': 'Only artisan accounts can upload verification documents.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            profile = request.user.artisanprofile
+        except ArtisanProfile.DoesNotExist:
+            return Response(
+                {'error': 'Artisan profile not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if 'document' not in request.FILES:
+            return Response(
+                {'error': 'No document file provided. Use "document" field.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        doc = request.FILES['document']
+
+        # Check document count limit
+        current_docs = profile.verification_documents or []
+        if len(current_docs) >= self.MAX_DOCUMENTS:
+            return Response(
+                {'error': f'Maximum {self.MAX_DOCUMENTS} verification documents allowed. '
+                          f'Delete an existing document before uploading a new one.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file extension
+        file_ext = doc.name.rsplit('.', 1)[-1].lower() if '.' in doc.name else ''
+        if file_ext not in self.ALLOWED_EXTENSIONS:
+            return Response(
+                {'error': f'Invalid file type ".{file_ext}". Allowed: JPG, PNG, WebP, PDF.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file size
+        if doc.size > self.MAX_FILE_SIZE:
+            return Response(
+                {'error': f'File too large ({doc.size // (1024*1024)}MB). Maximum size is 10MB.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file content for images (PDFs are harder to validate)
+        if file_ext in ['jpg', 'jpeg', 'png', 'webp']:
+            try:
+                from PIL import Image
+                img = Image.open(doc)
+                img.verify()
+                doc.seek(0)
+            except Exception:
+                return Response(
+                    {'error': 'Invalid image file. Please upload a valid image.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Save the file
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        import uuid
+
+        # Generate a unique filename to prevent path traversal
+        safe_filename = f"{uuid.uuid4().hex[:12]}_{doc.name}"
+        file_path = default_storage.save(f'verification/{safe_filename}', doc)
+        file_url = default_storage.url(file_path)
+
+        # Add to verification_documents list
+        doc_entry = {
+            'url': file_url,
+            'name': doc.name,
+            'uploaded_at': timezone.now().isoformat(),
+        }
+        current_docs.append(doc_entry)
+        profile.verification_documents = current_docs
+        profile.save(update_fields=['verification_documents'])
+
+        logger.info(
+            "Verification document uploaded by artisan %s (pk=%s): %s",
+            request.user.username, request.user.pk, file_path
+        )
+
+        return Response({
+            'message': 'Document uploaded successfully.',
+            'document': doc_entry,
+            'total_documents': len(current_docs),
+        }, status=status.HTTP_201_CREATED)
+
+
+class VerificationDocumentDeleteView(APIView):
+    """Allow artisans to delete a specific verification document.
+
+    DELETE /api/auth/me/verification-documents/<int:index>/
+    Removes the document at the given index from the verification_documents list.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, index):
+        if request.user.role != User.Role.ARTISAN:
+            return Response(
+                {'error': 'Only artisan accounts can manage verification documents.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            profile = request.user.artisanprofile
+        except ArtisanProfile.DoesNotExist:
+            return Response(
+                {'error': 'Artisan profile not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        current_docs = profile.verification_documents or []
+        if index < 0 or index >= len(current_docs):
+            return Response(
+                {'error': 'Document index out of range.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        doc_entry = current_docs.pop(index)
+
+        # Try to delete the actual file from storage
+        from django.core.files.storage import default_storage
+        file_url = doc_entry.get('url', '')
+        if file_url:
+            # Convert URL back to file path
+            media_prefix = settings.MEDIA_URL
+            if file_url.startswith(media_prefix):
+                file_path = file_url[len(media_prefix):]
+                if default_storage.exists(file_path):
+                    default_storage.delete(file_path)
+
+        profile.verification_documents = current_docs
+        profile.save(update_fields=['verification_documents'])
+
+        return Response({
+            'message': 'Document deleted successfully.',
+            'remaining_documents': len(current_docs),
         })

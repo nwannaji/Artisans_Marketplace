@@ -63,7 +63,10 @@ class TokenService {
     final exp = payload['exp'];
     if (exp == null) return true;
     final expiry = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
-    return expiry.isBefore(DateTime.now());
+    // SECURITY: Add a 30-second buffer to account for network latency.
+    // A token that expires in <30 seconds is treated as expired to avoid
+    // sending a request that arrives at the server after the token expires.
+    return expiry.isBefore(DateTime.now().add(const Duration(seconds: 30)));
   }
 
   /// Extracts user_id from the access token payload.

@@ -1,0 +1,1 @@
+from .models_portfolio import PortfolioImage  # noqa: F401

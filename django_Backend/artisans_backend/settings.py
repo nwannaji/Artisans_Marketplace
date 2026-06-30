@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+from decimal import Decimal
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -41,6 +42,15 @@ EBULKSMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME')
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 PAYSTACK_PUBLIC_KEY = os.getenv('PAYSTACK_PUBLIC_KEY')
 PAYSTACK_API_URL = os.getenv('PAYSTACK_API_URL')
+
+# Pandascrow Escrow Integration
+PANDASCROW_API_URL = os.getenv('PANDASCROW_API_URL', 'https://sandbox.pandascrow.io')
+PANDASCROW_CLIENT_ID = os.getenv('PANDASCROW_CLIENT_ID', '')
+PANDASCROW_CLIENT_SECRET = os.getenv('PANDASCROW_CLIENT_SECRET', '')
+PANDASCROW_WEBHOOK_SECRET = os.getenv('PANDASCROW_WEBHOOK_SECRET', '')
+PANDASCROW_CALLBACK_URL = os.getenv('PANDASCROW_CALLBACK_URL', '')
+PANDASCROW_PARTNER_FEE = Decimal(os.getenv('PANDASCROW_PARTNER_FEE', '0.10'))  # Platform commission (10%)
+PANDASCROW_SANDBOX = os.getenv('PANDASCROW_SANDBOX', 'True').lower() == 'true'
 
 # SECURITY: DEBUG must be False in production
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
@@ -74,12 +84,23 @@ INSTALLED_APPS = [
     'disputes',
     'django_filters',
     'admin_dashboard',
+    'notifications',
 ]
 
 # CORS: Configure proper origins for production
-# In development, allow all origins for mobile testing convenience
+# SECURITY: Even in development, restrict CORS to known origins rather than
+# allowing all origins. Use a whitelist of specific development origins.
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:8000',
+        'http://10.0.2.2:8000',   # Android emulator
+        'http://127.0.0.1:8000',
+    ] + [
+        origin.strip()
+        for origin in os.getenv('CORS_EXTRA_ORIGINS', '').split(',')
+        if origin.strip()
+    ]
 else:
     CORS_ALLOWED_ORIGINS = [
         origin.strip()
@@ -117,10 +138,6 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
-
-ADMIN_SITE_HEADER = "Artisan Services Administration"
-ADMIN_SITE_TITLE = "Artisan Services Admin Portal"
-ADMIN_INDEX_TITLE = "Welcome to Artisan Services Admin"
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -180,7 +197,8 @@ DATABASES = {
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'CONN_MAX_AGE': 60,
-        'CONN_HEALTH_CHECKS': True,
+        # CONN_HEALTH_CHECKS requires Django 5.1+; not available in 4.2.x
+        # 'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -293,6 +311,11 @@ LOGGING = {
             'propagate': False,
         },
         'admin_dashboard': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'notifications': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': False,

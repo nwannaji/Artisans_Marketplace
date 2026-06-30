@@ -59,6 +59,14 @@ class ChatListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    # SECURITY: Allowed audio MIME types and maximum file size for voice notes
+    ALLOWED_AUDIO_TYPES = [
+        'audio/mpeg', 'audio/mp4', 'audio/mp3', 'audio/ogg',
+        'audio/webm', 'audio/aac', 'audio/amr', 'audio/wav',
+        'audio/x-m4a', 'audio/m4a', 'audio/3gpp',
+    ]
+    MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
+
     def get_queryset(self):
         conversation_id = self.kwargs.get('conversation_id')
         user = self.request.user
@@ -107,12 +115,27 @@ class ChatListCreateAPIView(generics.ListCreateAPIView):
         else:
             message_type = 'text'
 
+        # SECURITY: Validate audio file type and size
+        if audio_file:
+            if hasattr(audio_file, 'content_type') and audio_file.content_type not in self.ALLOWED_AUDIO_TYPES:
+                raise exceptions.ValidationError(
+                    f"Invalid audio file type '{audio_file.content_type}'. "
+                    f"Allowed types: MP3, M4A, OGG, WebM, AAC, AMR, WAV."
+                )
+            if hasattr(audio_file, 'size') and audio_file.size > self.MAX_AUDIO_SIZE:
+                raise exceptions.ValidationError(
+                    f"Audio file too large ({audio_file.size // (1024*1024)}MB). Maximum size is 10MB."
+                )
+
         # Parse audio_duration from request data
         audio_duration = None
         duration_str = self.request.data.get('audio_duration')
         if duration_str:
             try:
                 audio_duration = float(duration_str)
+                # SECURITY: Cap audio duration to reasonable limit (60 minutes)
+                if audio_duration < 0 or audio_duration > 3600:
+                    audio_duration = None
             except (ValueError, TypeError):
                 pass
 
@@ -123,15 +146,19 @@ class ChatListCreateAPIView(generics.ListCreateAPIView):
         if message_type == 'location':
             lat_str = self.request.data.get('latitude')
             lng_str = self.request.data.get('longitude')
-            location_label = self.request.data.get('location_label', '')
+            location_label = self.request.data.get('location_label', '')[:200]  # Limit label length
             if lat_str:
                 try:
                     lat = float(lat_str)
+                    if not (-90 <= lat <= 90):
+                        raise exceptions.ValidationError("Latitude must be between -90 and 90.")
                 except (ValueError, TypeError):
                     pass
             if lng_str:
                 try:
                     lng = float(lng_str)
+                    if not (-180 <= lng <= 180):
+                        raise exceptions.ValidationError("Longitude must be between -180 and 180.")
                 except (ValueError, TypeError):
                     pass
 

@@ -4,12 +4,17 @@ from .views import (
     WalletDetailAPIView, TransactionListCreateAPIView,
     TransactionUpdateAPIView, AppSettingsRetrieveUpdateAPIView,
     EscrowFundJobAPIView, EscrowReleaseJobAPIView,
+    EscrowStatusAPIView, EscrowReleaseOtpAPIView,
     DepositAPIView,
     AdminEscrowListView, AdminEscrowReleaseAPIView, AdminEscrowRefundAPIView,
     PaystackWebhookView,
+    PaystackTransferWebhookView,
+    PandascrowWebhookView,
     BankAccountListCreateAPIView, BankAccountDetailAPIView, BankAccountVerifyAPIView,
     WithdrawalAPIView,
 )
+
+app_name = 'payments'
 
 urlpatterns = [
     path('wallet/', WalletDetailAPIView.as_view(), name='wallet-detail'),
@@ -23,8 +28,12 @@ urlpatterns = [
     path('bank-accounts/<int:pk>/verify/', BankAccountVerifyAPIView.as_view(), name='bank-account-verify'),
     path('paystack/callback/', PaystackPaymentCallbackView.as_view(), name='paystack-callback'),
     path('paystack/webhook/', PaystackWebhookView.as_view(), name='paystack-webhook'),
+    path('paystack/transfer-webhook/', PaystackTransferWebhookView.as_view(), name='paystack-transfer-webhook'),
+    path('pandascrow/webhook/', PandascrowWebhookView.as_view(), name='pandascrow-webhook'),
     path('escrow/<int:pk>/fund/', EscrowFundJobAPIView.as_view(), name='escrow-fund'),
     path('escrow/<int:pk>/release/', EscrowReleaseJobAPIView.as_view(), name='escrow-release'),
+    path('escrow/<int:pk>/status/', EscrowStatusAPIView.as_view(), name='escrow-status'),
+    path('escrow/<int:pk>/release/otp/', EscrowReleaseOtpAPIView.as_view(), name='escrow-release-otp'),
     path('admin/escrow/', AdminEscrowListView.as_view(), name='admin-escrow-list'),
     path('admin/escrow/<int:pk>/release/', AdminEscrowReleaseAPIView.as_view(), name='admin-escrow-release'),
     path('admin/escrow/<int:pk>/refund/', AdminEscrowRefundAPIView.as_view(), name='admin-escrow-refund'),
