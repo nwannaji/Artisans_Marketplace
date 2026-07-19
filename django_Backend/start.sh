@@ -12,6 +12,9 @@ mkdir -p /app/logs
 echo "=== Running database migrations ==="
 python manage.py migrate --noinput
 
+echo "=== Loading initial data (if fresh database) ==="
+python manage.py loaddata initial_data.json 2>/dev/null || echo "Data already loaded or fixture not found, skipping..."
+
 echo "=== Creating superuser (if not exists) ==="
 if [ -n "$ADMIN_USERNAME" ] && [ -n "$ADMIN_PASSWORD" ]; then
     python manage.py setup_admin --username "$ADMIN_USERNAME" --password "$ADMIN_PASSWORD" || true
