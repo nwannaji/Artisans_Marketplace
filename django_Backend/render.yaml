@@ -14,7 +14,7 @@ services:
     runtime: docker
     plan: free                       # Change to 'starter' for $7/mo (no cold starts)
     region: oregon                   # or frankfurt for EU
-    branch: master
+    branch: artisans_services
     rootDir: django_Backend          # Subdirectory in the repo
     dockerfilePath: ./Dockerfile
     # Render auto-assigns PORT; gunicorn reads it via the CMD in Dockerfile
