@@ -276,21 +276,11 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 1800  # 30 minutes — short for a financial dashboard
 CSRF_COOKIE_HTTPONLY = True
 
-# Logging
-# Logging: use file handler in development, console-only in production
-# (Render and similar platforms capture console output; /app/logs/ doesn't exist in Docker)
-_LOG_HANDLERS = ['console', 'file'] if DEBUG else ['console']
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
+# Logging: console-only in production (Render captures stdout; no /app/logs/ in Docker)
+# In development, also log to file for local debugging.
+if DEBUG:
+    _LOGGING_HANDLERS = ['console', 'file']
+    _LOGGING_HANDLER_CONFIG = {
         'file': {
             'level': 'WARNING',
             'class': 'logging.FileHandler',
@@ -302,35 +292,55 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
+    }
+else:
+    _LOGGING_HANDLERS = ['console']
+    _LOGGING_HANDLER_CONFIG = {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    }
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
     },
+    'handlers': _LOGGING_HANDLER_CONFIG,
     'loggers': {
         'django': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': True,
         },
         'accounts': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
         'payments': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
         'chats': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
         'admin_dashboard': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
         'notifications': {
-            'handlers': _LOG_HANDLERS,
+            'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
