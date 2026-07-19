@@ -26,24 +26,18 @@ android {
         jvmTarget = "11"
     }
 
-    // SECURITY: Create a proper release keystore before shipping to production.
-    // See: https://docs.flutter.dev/deployment/android#signing-the-app
-    // Never ship debug-signed builds to production.
     signingConfigs {
-        // TODO: Create a release keystore and configure it here:
-        // create("release") {
-        //     storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
-        //     storePassword = System.getenv("KEYSTORE_PASSWORD")
-        //     keyAlias = System.getenv("KEY_ALIAS")
-        //     keyPassword = System.getenv("KEY_PASSWORD")
-        // }
+        create("release") {
+            storeFile = file("${rootProject.projectDir}/../../../my-release-key.jks")
+            storePassword = "nwannaji"
+            keyAlias = "upload"
+            keyPassword = "nwannaji"
+        }
     }
 
     buildTypes {
         release {
-            // SECURITY: Replace debug signing with a proper release keystore before production!
-            // Using debug signing config allows anyone to modify and re-sign the APK.
-            signingConfig = signingConfigs.getByName("debug") // change for release build later
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
