@@ -6,6 +6,9 @@
 
 set -e
 
+# Ensure logs directory exists (Django file handler needs it)
+mkdir -p /app/logs
+
 echo "=== Running database migrations ==="
 python manage.py migrate --noinput
 
