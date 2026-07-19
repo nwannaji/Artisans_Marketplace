@@ -40,8 +40,11 @@ RUN apt-get update && \
 # Copy virtualenv from builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy project source
+# Copy project source — ALWAYS invalidate cache here to pick up code changes
 COPY . .
+
+# Ensure logs directory exists for local dev (production uses console-only logging)
+RUN mkdir -p /app/logs
 
 # Collect static files (WhiteNoise will serve them)
 RUN DJANGO_SETTINGS_MODULE=artisans_backend.settings \
