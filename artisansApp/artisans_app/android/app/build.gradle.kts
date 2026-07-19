@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.artisans_app"
+    namespace = "com.fixit.ng"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.example.artisans_app"
+        applicationId = "com.fixit.ng"
         minSdk = 27
         targetSdk = 35
         versionCode = flutter.versionCode
