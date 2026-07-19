@@ -408,7 +408,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.account_balance_wallet, size: 16, color: Colors.indigo),
+                  const Icon(Icons.account_balance_wallet, size: 16, color: AppColors.primary),
                   Text(' Escrow: ₦${job.escrowHeldAmount.toStringAsFixed(0)}',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                 ],

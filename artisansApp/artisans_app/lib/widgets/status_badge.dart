@@ -2,6 +2,7 @@
 //
 // A reusable status badge widget that replaces the duplicated
 // Container+BoxDecoration pattern found across 15+ screen locations.
+// Updated to CHOP LIFE pill-badge style with rounded corners.
 
 import 'package:flutter/material.dart';
 import '../theme/app_spacing.dart';
@@ -17,7 +18,7 @@ class StatusBadge extends StatelessWidget {
     required this.label,
     required this.color,
     this.fontSize = 11,
-    this.borderRadius = AppRadius.sm,
+    this.borderRadius = AppRadius.pillBadge,
   });
 
   /// Outlined variant: tinted background + border, colored text.
@@ -33,7 +34,7 @@ class StatusBadge extends StatelessWidget {
         label: label,
         color: color,
         fontSize: fontSize,
-        borderRadius: AppRadius.sm,
+        borderRadius: AppRadius.pillBadge,
       );
 
   /// Filled variant: solid background, white text.
@@ -49,7 +50,7 @@ class StatusBadge extends StatelessWidget {
         label: label,
         color: color,
         fontSize: fontSize,
-        borderRadius: AppRadius.md,
+        borderRadius: AppRadius.pillBadge,
       );
 
   @override

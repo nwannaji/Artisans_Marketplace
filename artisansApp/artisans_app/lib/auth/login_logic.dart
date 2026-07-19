@@ -33,10 +33,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!context.mounted) return;
 
       if (user != null) {
-        if (user.role == UserRole.customer) {
-          Navigator.pushReplacementNamed(context, '/user_home');
-        } else if (user.role == UserRole.artisan) {
-          Navigator.pushReplacementNamed(context, '/artisan_dashboard');
+        if (user.role == UserRole.customer || user.role == UserRole.artisan) {
+          Navigator.pushReplacementNamed(context, '/home');
         } else if (user.role == UserRole.admin) {
           Navigator.pushReplacementNamed(context, '/admin_dashboard');
         } else {
@@ -80,6 +78,13 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
+              const SizedBox(height: 24),
+              CircleAvatar(
+                radius: 56,
+                backgroundImage: const AssetImage('assets/images/Persona_Image.png'),
+                backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              ),
+              const SizedBox(height: 24),
               TextField(
                 controller: usernameController,
                 decoration: const InputDecoration(

@@ -175,9 +175,9 @@ WSGI_APPLICATION = 'artisans_backend.wsgi.application'
 AUTH_USER_MODEL = 'accounts.User'
 
 # Admin settings
-ADMIN_SITE_HEADER = "Artisan Services Administration"
-ADMIN_SITE_TITLE = "Artisan Services Admin Portal"
-ADMIN_INDEX_TITLE = "Welcome to Artisan Services Admin"
+ADMIN_SITE_HEADER = "FixIt App Administration"
+ADMIN_SITE_TITLE = "FixIt App Admin Portal"
+ADMIN_INDEX_TITLE = "Welcome to FixIt App Admin"
 
 # File uploads
 MEDIA_URL = '/media/'

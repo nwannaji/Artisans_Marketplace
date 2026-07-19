@@ -10,6 +10,7 @@ import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/services/location_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -273,20 +274,6 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
     _gpsUpdateTimer = null;
   }
 
-  Color _availabilityColor(String status) {
-    switch (status) {
-      case 'AVAILABLE':
-        return Colors.green;
-      case 'ENGAGED':
-        return Colors.blue;
-      case 'BUSY':
-        return Colors.orange;
-      case 'OFFLINE':
-        return Colors.grey;
-      default:
-        return Colors.grey;
-    }
-  }
 
   Future<void> _acceptJob(Job job) async {
     try {
@@ -353,28 +340,6 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
     }
   }
 
-  Color _statusColor(JobStatus status) {
-    switch (status) {
-      case JobStatus.pending:
-        return Colors.orange;
-      case JobStatus.adminApproved:
-        return Colors.blue;
-      case JobStatus.accepted:
-        return Colors.indigo;
-      case JobStatus.inProgress:
-        return Colors.teal;
-      case JobStatus.awaitingReview:
-        return Colors.amber;
-      case JobStatus.completed:
-        return Colors.green;
-      case JobStatus.cancelled:
-        return Colors.red;
-      case JobStatus.disputed:
-        return Colors.pink;
-      case JobStatus.rejected:
-        return Colors.grey;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -561,7 +526,7 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
 
   Widget _buildAvailabilityToggle() {
     final currentStatus = _artisanProfile?.isAvailable ?? 'OFFLINE';
-    final color = _availabilityColor(currentStatus);
+    final color = AppColors.availabilityColor(currentStatus);
     final isEngaged = currentStatus == 'ENGAGED';
 
     return Card(
@@ -682,7 +647,7 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _statusColor(job.status),
+                    color: AppColors.jobStatusColor(job.status),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -792,7 +757,7 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
           return ElevatedButton.icon(
             icon: const Icon(Icons.payment, size: 16),
             label: const Text('View Escrow'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,

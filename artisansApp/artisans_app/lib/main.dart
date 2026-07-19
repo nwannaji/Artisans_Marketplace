@@ -5,6 +5,7 @@ import 'package:artisans_app/auth/forgot_password_screen.dart';
 import 'package:artisans_app/auth/reset_password_screen.dart';
 import 'package:artisans_app/screens/artisan_dashboard.dart';
 import 'package:artisans_app/screens/user_home_screen.dart';
+import 'package:artisans_app/screens/home_screen.dart';
 import 'package:artisans_app/screens/admin_dashboard.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/screens/conversations_screen.dart';
@@ -58,7 +59,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
       ],
       child: MaterialApp(
-        title: 'Artisan Services',
+        title: 'FixIt App',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme(),
         onGenerateRoute: (settings) {
@@ -71,6 +72,8 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (_) => const ArtisanDashboardScreen(),
               );
+            case '/home':
+              return MaterialPageRoute(builder: (_) => const HomeScreen());
             case '/user_home':
               return MaterialPageRoute(builder: (_) => const HomePage());
             case '/admin_dashboard':
@@ -159,10 +162,8 @@ class MyApp extends StatelessWidget {
     final isAuth = await _authViewModel.checkAuth();
     if (isAuth && _authViewModel.currentUser != null) {
       final role = _authViewModel.currentUser!.role;
-      if (role == UserRole.customer) {
-        return const HomePage();
-      } else if (role == UserRole.artisan) {
-        return const ArtisanDashboardScreen();
+      if (role == UserRole.customer || role == UserRole.artisan) {
+        return const HomeScreen();
       } else if (role == UserRole.admin) {
         return const AdminDashboard();
       }

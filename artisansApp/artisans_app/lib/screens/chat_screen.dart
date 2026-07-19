@@ -4,6 +4,7 @@ import 'package:artisans_app/models/message.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/chat_api_service.dart';
 import 'package:artisans_app/services/voice_note_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/widgets/audio_player_bubble.dart';
 import 'package:artisans_app/widgets/location_message_bubble.dart';
 import 'package:artisans_app/widgets/location_picker.dart';
@@ -284,7 +285,7 @@ class _ChatScreenPageState extends State<ChatScreenPage> {
           margin: const EdgeInsets.symmetric(vertical: 4),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isSender ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2) : Colors.grey.shade300,
+            color: isSender ? AppColors.primary.withValues(alpha: 0.2) : Colors.grey.shade300,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(

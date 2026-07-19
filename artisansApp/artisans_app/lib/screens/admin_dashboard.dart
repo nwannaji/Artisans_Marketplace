@@ -4,6 +4,7 @@ import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/models/artisan.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/widgets/status_badge.dart';
 import 'package:artisans_app/widgets/drag_handle.dart';
 import 'package:flutter/material.dart';
@@ -201,7 +202,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           children: [
                             Flexible(child: Text(artisan.fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
                             if (artisan.isVerified)
-                              const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 18, color: Colors.blue)),
+                              const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 18, color: AppColors.verifiedBlue)),
                           ],
                         ),
                         Text(artisan.profession ?? 'No profession set', style: const TextStyle(fontSize: 14, color: Colors.black54)),
@@ -222,11 +223,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   StatusBadge.outlined(
                     label: artisan.isVerified ? 'Verified' : 'Unverified',
-                    color: artisan.isVerified ? Colors.blue : Colors.orange,
+                    color: artisan.isVerified ? AppColors.verifiedBlue : Colors.orange,
                   ),
                   StatusBadge.outlined(
                     label: artisan.availabilityLabel,
-                    color: artisan.isAvailableNow ? Colors.green : (artisan.isEngaged ? Colors.blue : (artisan.isAvailable == 'BUSY' ? Colors.orange : Colors.grey)),
+                    color: artisan.isAvailableNow ? Colors.green : (artisan.isEngaged ? AppColors.primary : (artisan.isAvailable == 'BUSY' ? Colors.orange : Colors.grey)),
                   ),
                 ],
               ),
@@ -445,10 +446,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildManagementCards() {
     final cards = [
-      _ManagementCard(icon: Icons.account_balance_wallet, label: 'Escrow\nManagement', color: Colors.indigo, route: '/admin_escrow'),
-      _ManagementCard(icon: Icons.people, label: 'Customer\nManagement', color: Colors.teal, route: '/admin_customers'),
+      _ManagementCard(icon: Icons.account_balance_wallet, label: 'Escrow\nManagement', color: AppColors.primary, route: '/admin_escrow'),
+      _ManagementCard(icon: Icons.people, label: 'Customer\nManagement', color: AppColors.primary, route: '/admin_customers'),
       _ManagementCard(icon: Icons.gavel, label: 'Dispute\nManagement', color: Colors.red, route: '/admin_disputes'),
-      _ManagementCard(icon: Icons.chat, label: 'Chat\nMediation', color: Colors.blue, route: '/admin_chat'),
+      _ManagementCard(icon: Icons.chat, label: 'Chat\nMediation', color: AppColors.primary, route: '/admin_chat'),
     ];
     return Row(
       children: cards.map((card) => Expanded(
@@ -628,7 +629,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       children: [
                         Flexible(child: Text(artisan.fullName, style: const TextStyle(fontWeight: FontWeight.w600))),
                         if (artisan.isVerified)
-                          const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
+                          const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: AppColors.verifiedBlue)),
                         if (!artisan.userIsActive)
                           const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.lock_outline, size: 16, color: Colors.red)),
                       ],

@@ -3,6 +3,7 @@
 import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/api_client.dart';
 import 'package:artisans_app/services/api_exception.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -106,7 +107,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 32),
-                const Icon(Icons.key, size: 64, color: Color(0xFF00897B)),
+                const Icon(Icons.key, size: 64, color: AppColors.primary),
                 const SizedBox(height: 24),
                 const Text(
                   'Reset Your Password',

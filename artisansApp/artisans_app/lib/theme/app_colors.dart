@@ -12,19 +12,20 @@ import '../models/dispute.dart';
 class AppColors {
   AppColors._();
 
-  // ── Primary palette (from original MyApp constants) ──────────────────
-  static const Color primary = Color(0xFF00897B);       // Teal 600
-  static const Color primaryDark = Color(0xFF00695C);    // Teal 800
-  static const Color primaryLight = Color(0xFFB2DFDB);  // Teal 100
-  static const Color accent = Color(0xFFFFB300);         // Amber 600
-  static const Color background = Color(0xFFECEFF1);     // Blue Grey 50
+  // ── Primary palette (CHOP LIFE design system) ────────────────────────
+  static const Color primary = Color(0xFF1E3A8A);       // Deep Trust Blue
+  static const Color primaryDark = Color(0xFF1E3A5F);    // Darker Blue
+  static const Color primaryLight = Color(0xFFDBEAFE);  // Blue 100
+  static const Color accent = Color(0xFFD97706);         // Abuja Gold / Amber
+  static const Color background = Color(0xFFF8FAFC);     // Clean Slate
   static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF212121);
-  static const Color textSecondary = Color(0xFF757575);
+  static const Color textPrimary = Color(0xFF0F172A);   // Slate 900
+  static const Color textSecondary = Color(0xFF64748B);  // Slate 500
+  static const Color verifiedBlue = Color(0xFF0284C7);   // Trust verification badge
 
   // ── Gradients ────────────────────────────────────────────────────────
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [primary, primaryDark],
+    colors: [Color(0xFF1E3A8A), Color(0xFF1E3A5F)], // Deep Trust Blue gradient
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

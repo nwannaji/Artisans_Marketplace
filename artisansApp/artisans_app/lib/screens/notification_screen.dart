@@ -2,6 +2,7 @@
 
 import 'package:artisans_app/models/notification.dart' as models;
 import 'package:artisans_app/services/notification_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -208,7 +209,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         borderRadius: BorderRadius.circular(12),
         side: notification.isRead
             ? BorderSide.none
-            : const BorderSide(color: Color(0xFF00897B), width: 1.5),
+            : BorderSide(color: AppColors.primary, width: 1.5),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -223,7 +224,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 decoration: BoxDecoration(
                   color: notification.isRead
                       ? Colors.grey.shade200
-                      : const Color(0xFF00897B).withValues(alpha: 0.15),
+                      : AppColors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -231,7 +232,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   size: 24,
                   color: notification.isRead
                       ? Colors.grey
-                      : const Color(0xFF00897B),
+                      : AppColors.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -260,7 +261,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             height: 8,
                             margin: const EdgeInsets.only(left: 8),
                             decoration: const BoxDecoration(
-                              color: Color(0xFF00897B),
+                              color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
                           ),

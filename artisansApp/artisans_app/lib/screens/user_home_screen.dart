@@ -7,6 +7,7 @@ import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/services/location_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
@@ -241,13 +242,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Color _availabilityColor(String status) {
-    switch (status) {
-      case 'AVAILABLE': return Colors.green;
-      case 'ENGAGED': return Colors.blue;
-      case 'BUSY': return Colors.orange;
-      case 'OFFLINE': return Colors.grey;
-      default: return Colors.grey;
-    }
+    return AppColors.availabilityColor(status);
   }
 
   /// Format distance for display: "Nearby" for <100m, meters for <1km, km otherwise.
@@ -259,17 +254,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Color _statusColor(JobStatus status) {
-    switch (status) {
-      case JobStatus.pending: return Colors.orange;
-      case JobStatus.adminApproved: return Colors.blue;
-      case JobStatus.accepted: return Colors.indigo;
-      case JobStatus.inProgress: return Colors.teal;
-      case JobStatus.awaitingReview: return Colors.amber;
-      case JobStatus.completed: return Colors.green;
-      case JobStatus.cancelled: return Colors.red;
-      case JobStatus.disputed: return Colors.pink;
-      case JobStatus.rejected: return Colors.grey;
-    }
+    return AppColors.jobStatusColor(status);
   }
 
   @override
@@ -297,6 +282,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ],
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(icon: Icon(Icons.search), text: 'Nearby'),
             Tab(icon: Icon(Icons.people), text: 'My Artisans'),
@@ -574,7 +561,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             if (artisan.isVerified)
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
-                                child: Icon(Icons.verified, size: 16, color: Colors.blue),
+                                child: Icon(Icons.verified, size: 16, color: AppColors.verifiedBlue),
                               ),
                           ],
                         ),
@@ -734,7 +721,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             if (artisan.isVerified)
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
-                                child: Icon(Icons.verified, size: 16, color: Colors.blue),
+                                child: Icon(Icons.verified, size: 16, color: AppColors.verifiedBlue),
                               ),
                           ],
                         ),
@@ -793,7 +780,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     icon: const Icon(Icons.chat_bubble_outline, size: 16),
                     label: const Text('Message'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blue,
+                      foregroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: const Size(0, 32),
                     ),
@@ -835,7 +822,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       icon: const Icon(Icons.payment, size: 16),
                       label: const Text('Fund Escrow'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: const Size(0, 32),
@@ -864,7 +851,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       icon: const Icon(Icons.payment, size: 16),
                       label: const Text('Pay'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: const Size(0, 32),

@@ -1,7 +1,7 @@
 // lib/theme/app_theme.dart
 //
-// App-wide ThemeData built from design tokens.
-// Replaces the inline ThemeData in main.dart.
+// App-wide ThemeData built from CHOP LIFE design tokens.
+// Primary: Deep Trust Blue, Accent: Abuja Gold, Surface: Clean Slate.
 
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
@@ -12,12 +12,14 @@ class AppTheme {
 
   static ThemeData lightTheme() {
     return ThemeData(
+      useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primary,
         primary: AppColors.primary,
         secondary: AppColors.accent,
         surface: AppColors.surface,
       ),
+      fontFamily: 'Roboto',
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.background,
       appBarTheme: const AppBarTheme(
@@ -37,7 +39,8 @@ class AppTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        elevation: AppElevation.medium,
+        elevation: AppElevation.low,
+        margin: const EdgeInsets.symmetric(vertical: 6),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),

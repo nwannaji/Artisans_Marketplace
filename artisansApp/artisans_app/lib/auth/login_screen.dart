@@ -1,5 +1,4 @@
-import 'package:artisans_app/screens/user_home_screen.dart';
-import 'package:artisans_app/screens/artisan_dashboard.dart';
+import 'package:artisans_app/screens/home_screen.dart';
 import 'package:artisans_app/screens/admin_dashboard.dart';
 import 'package:artisans_app/auth/forgot_password_screen.dart';
 import 'package:artisans_app/viewmodels/auth_view_model.dart';
@@ -32,10 +31,8 @@ class LoginScreen extends StatelessWidget {
             if (viewModel.state == AuthState.success && viewModel.currentUser != null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 final role = viewModel.currentUser!.role;
-                if (role == UserRole.customer) {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
-                } else if (role == UserRole.artisan) {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ArtisanDashboardScreen()));
+                if (role == UserRole.customer || role == UserRole.artisan) {
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
                 } else if (role == UserRole.admin) {
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboard()));
                 }
@@ -84,6 +81,12 @@ class _LoginFormState extends State<_LoginForm> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          CircleAvatar(
+            radius: 56,
+            backgroundImage: const AssetImage('assets/images/Persona_Image.png'),
+            backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+          ),
+          const SizedBox(height: 24),
           TextField(
             controller: _usernameController,
             decoration: const InputDecoration(

@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'package:artisans_app/services/api_client.dart';
 import 'package:artisans_app/services/api_exception.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -260,10 +261,10 @@ class _VerificationDocumentsScreenState
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
-                      color: const Color(0xFF00897B).withValues(alpha: 0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       child: const Row(
                         children: [
-                          Icon(Icons.info_outline, color: Color(0xFF00897B)),
+                          Icon(Icons.info_outline, color: AppColors.primary),
                           SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -378,10 +379,10 @@ class _VerificationDocumentsScreenState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF00897B).withValues(alpha: 0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: const Color(0xFF00897B), size: 28),
+              child: Icon(icon, color: AppColors.primary, size: 28),
             ),
             const SizedBox(width: 12),
             Expanded(

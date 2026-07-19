@@ -3,6 +3,7 @@ import 'package:artisans_app/models/conversation.dart';
 import 'package:artisans_app/models/message.dart';
 import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/chat_api_service.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class AdminChatScreen extends StatefulWidget {
@@ -258,7 +259,7 @@ class _AdminChatDetailScreenState extends State<AdminChatDetailScreen> {
                 IconButton(
                   icon: _isSending
                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.send, color: Colors.teal),
+                      : const Icon(Icons.send, color: AppColors.primary),
                   onPressed: _isSending ? null : _sendMessage,
                 ),
               ],
@@ -278,9 +279,9 @@ class _AdminChatDetailScreenState extends State<AdminChatDetailScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: isAdmin ? Colors.teal.shade100 : Colors.grey.shade200,
+          color: isAdmin ? AppColors.primaryLight : Colors.grey.shade200,
           borderRadius: BorderRadius.circular(12),
-          border: isAdmin ? Border.all(color: Colors.teal.shade300) : null,
+          border: isAdmin ? Border.all(color: AppColors.primary.withValues(alpha: 0.3)) : null,
         ),
         child: Column(
           crossAxisAlignment: isAdmin ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -289,7 +290,7 @@ class _AdminChatDetailScreenState extends State<AdminChatDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.teal,
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text('ADMIN', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),

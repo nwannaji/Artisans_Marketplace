@@ -53,7 +53,7 @@ class _SignupPageState extends State<SignupPage> {
 
       if (response != null && response.containsKey('tokens')) {
         // Customer accounts are auto-activated — go to home
-        Navigator.pushReplacementNamed(context, '/user_home');
+        Navigator.pushReplacementNamed(context, '/home');
       } else if (response != null) {
         // Artisan/Admin accounts need admin approval
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,6 +101,13 @@ class _SignupPageState extends State<SignupPage> {
             key: _formKey,
             child: Column(
               children: [
+                const SizedBox(height: 8),
+                CircleAvatar(
+                  radius: 56,
+                  backgroundImage: const AssetImage('assets/images/artisan_persona.png'),
+                  backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                ),
+                const SizedBox(height: 24),
                 TextFormField(
                   controller: usernameController,
                   decoration: const InputDecoration(

@@ -1,5 +1,6 @@
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
+import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -123,7 +124,7 @@ class _ArtisanMapScreenState extends State<ArtisanMapScreen> {
                       children: [
                         Flexible(child: Text(artisan.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
                         if (artisan.isVerified)
-                          const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: Colors.blue)),
+                          const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, size: 16, color: AppColors.verifiedBlue)),
                       ],
                     ),
                     if (artisan.profession != null)

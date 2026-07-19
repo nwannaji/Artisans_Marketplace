@@ -474,7 +474,7 @@ class _WalletScreenState extends State<WalletScreen> {
     }
     if (job.status == JobStatus.awaitingReview ||
         job.status == JobStatus.completed) {
-      return Colors.teal;
+      return AppColors.primary;
     }
     return Colors.grey;
   }
@@ -557,10 +557,10 @@ class _WalletScreenState extends State<WalletScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.indigo.withValues(alpha: 0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.verified_user, color: Colors.indigo, size: 20),
+                    child: const Icon(Icons.verified_user, color: AppColors.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -604,10 +604,10 @@ class _WalletScreenState extends State<WalletScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 18,
-                                backgroundColor: Colors.indigo.withValues(alpha: 0.1),
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                                 child: Text(
                                   artisanName[0].toUpperCase(),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -794,11 +794,11 @@ class _WalletScreenState extends State<WalletScreen> {
           if (funded.isNotEmpty) ...[
             Row(
               children: [
-                Icon(Icons.lock_open, size: 16, color: Colors.teal[700]),
+                Icon(Icons.lock_open, size: 16, color: AppColors.primary),
                 const SizedBox(width: 4),
                 Text(
                   'Release Payment',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.teal[700]),
+                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary),
                 ),
               ],
             ),
@@ -919,13 +919,13 @@ class _WalletScreenState extends State<WalletScreen> {
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Colors.teal.shade600, Colors.teal.shade800],
+                              colors: [AppColors.primary, AppColors.primaryDark],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
-                              BoxShadow(color: Colors.teal.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                              BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
                             ],
                           ),
                           child: Column(
@@ -946,7 +946,7 @@ class _WalletScreenState extends State<WalletScreen> {
                                       label: const Text('Deposit'),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white,
-                                        foregroundColor: Colors.teal.shade800,
+                                        foregroundColor: AppColors.primaryDark,
                                       ),
                                       onPressed: _deposit,
                                     ),
@@ -957,8 +957,8 @@ class _WalletScreenState extends State<WalletScreen> {
                                       icon: const Icon(Icons.outbox, size: 18),
                                       label: const Text('Withdraw'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.amber,
-                                        foregroundColor: Colors.teal.shade900,
+                                        backgroundColor: AppColors.accent,
+                                        foregroundColor: AppColors.primaryDark,
                                       ),
                                       onPressed: _withdraw,
                                     ),
@@ -973,7 +973,7 @@ class _WalletScreenState extends State<WalletScreen> {
                                     icon: const Icon(Icons.verified_user, size: 18),
                                     label: const Text('Pay via Escrow'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.indigo,
+                                      backgroundColor: AppColors.primary,
                                       foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

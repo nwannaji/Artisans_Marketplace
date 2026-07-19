@@ -123,3 +123,16 @@ Payments	paystack_flutter, flutterwave_standard, http
 Auth	firebase_auth or jwt_decoder
 Scheduling	table_calendar, flutter_datetime_picker
 
+
+
+
+  ───────────────┬────────────────────┬───────────────┬─────
+  │   Username    │       Email        │   Password    │       Role        │
+  ├───────────────┼────────────────────┼───────────────┼───
+  │ Customer_test │ test@example.com   │ Customer@2026 │ CUSTOMER          │
+  ├───────────────┼────────────────────┼───────────────┼───
+  │ Artisan_test  │ test@example.com   │ Artisan@2026  │ ARTISAN           │
+  ├───────────────┼────────────────────┼───────────────┼───
+  │ admin         │ admin@artisans.com │ Admin@2026    │ ADMIN (superuser) │
+  └───────────────┴────────────────────┴───────────────┴────
+
