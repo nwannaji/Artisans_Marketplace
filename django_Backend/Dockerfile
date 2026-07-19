@@ -13,17 +13,20 @@ RUN apt-get update && \
         libpq-dev \
         && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Create virtualenv and install Python dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Runtime stage ───────────────────────────────────────────
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/install/bin:${PATH}" \
-    PYTHONPATH="/install/lib/python3.12/site-packages:${PYTHONPATH}"
+    PATH="/opt/venv/bin:${PATH}" \
+    VIRTUAL_ENV="/opt/venv"
 
 WORKDIR /app
 
@@ -34,8 +37,8 @@ RUN apt-get update && \
         libjpeg-dev \
         && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /install /install
+# Copy virtualenv from builder
+COPY --from=builder /opt/venv /opt/venv
 
 # Copy project source
 COPY . .
