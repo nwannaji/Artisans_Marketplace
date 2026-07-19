@@ -13,7 +13,7 @@ echo "=== Running database migrations ==="
 python manage.py migrate --noinput
 
 echo "=== Loading initial data (if fresh database) ==="
-python manage.py loaddata initial_data.json 2>/dev/null || echo "Data already loaded or fixture not found, skipping..."
+python manage.py loaddata fixtures/initial_data.json || echo "Data already loaded or fixture not found, skipping..."
 
 echo "=== Creating superuser (if not exists) ==="
 if [ -n "$ADMIN_USERNAME" ] && [ -n "$ADMIN_PASSWORD" ]; then
