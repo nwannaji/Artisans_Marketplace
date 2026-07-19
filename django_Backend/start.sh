@@ -13,7 +13,11 @@ echo "=== Running database migrations ==="
 python manage.py migrate --noinput
 
 echo "=== Creating superuser (if not exists) ==="
-python manage.py setup_admin || true
+if [ -n "$ADMIN_USERNAME" ] && [ -n "$ADMIN_PASSWORD" ]; then
+    python manage.py setup_admin --username "$ADMIN_USERNAME" --password "$ADMIN_PASSWORD" || true
+else
+    echo "Skipping admin creation: ADMIN_USERNAME and ADMIN_PASSWORD env vars not set"
+fi
 
 echo "=== Starting gunicorn on port ${PORT:-10000} ==="
 exec gunicorn artisans_backend.wsgi:application \
