@@ -25,19 +25,19 @@ def _cleanup_orphaned_tables(user):
 
     These tables have foreign keys to accounts_user but Django's CASCADE
     only works for models it knows about.  Orphaned tables must be handled
-    with raw SQL.
+    with raw SQL.  Silently skip if the table no longer exists.
     """
+    orphaned_tables = ['payments_bankaccount', 'payments_wallet']
     with connection.cursor() as cursor:
-        # payments_bankaccount: FK to user — delete before user
-        cursor.execute(
-            "DELETE FROM payments_bankaccount WHERE user_id = %s",
-            [user.pk],
-        )
-        # payments_wallet: OneToOne to user — delete before user
-        cursor.execute(
-            "DELETE FROM payments_wallet WHERE user_id = %s",
-            [user.pk],
-        )
+        for table in orphaned_tables:
+            try:
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE user_id = %s",
+                    [user.pk],
+                )
+            except Exception:
+                # Table may have been dropped in a migration; skip silently
+                pass
 
 
 # ========================
@@ -600,15 +600,20 @@ def user_delete(request, pk):
         ),
     }
     # Include orphaned table counts (apps removed from codebase but tables still in DB)
+    orphaned_tables = {
+        'wallet': 'payments_wallet',
+        'bank_account': 'payments_bankaccount',
+    }
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
-        wallet_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM payments_bankaccount WHERE user_id = %s", [user.pk])
-        bank_count = cursor.fetchone()[0]
-    if wallet_count:
-        related_counts['wallet'] = wallet_count
-    if bank_count:
-        related_counts['bank_account'] = bank_count
+        for label, table in orphaned_tables.items():
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id = %s", [user.pk])
+                count = cursor.fetchone()[0]
+                if count:
+                    related_counts[label] = count
+            except Exception:
+                # Table may have been dropped; skip silently
+                pass
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -692,15 +697,20 @@ def artisan_delete(request, pk):
         'reviews': Review.objects.filter(artisan=profile).count(),
     }
     # Include orphaned table counts (apps removed from codebase but tables still in DB)
+    orphaned_tables = {
+        'wallet': 'payments_wallet',
+        'bank_account': 'payments_bankaccount',
+    }
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
-        wallet_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM payments_bankaccount WHERE user_id = %s", [user.pk])
-        bank_count = cursor.fetchone()[0]
-    if wallet_count:
-        related_counts['wallet'] = wallet_count
-    if bank_count:
-        related_counts['bank_account'] = bank_count
+        for label, table in orphaned_tables.items():
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id = %s", [user.pk])
+                count = cursor.fetchone()[0]
+                if count:
+                    related_counts[label] = count
+            except Exception:
+                # Table may have been dropped; skip silently
+                pass
 
     if request.method == 'POST':
         action = request.POST.get('action')
