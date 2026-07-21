@@ -9,6 +9,7 @@ import 'package:artisans_app/screens/account_settings_screen.dart';
 import 'package:artisans_app/screens/booking_history_screen.dart';
 import 'package:artisans_app/screens/chat_screen.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
+import 'package:artisans_app/screens/edit_customer_profile_screen.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/theme/app_spacing.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
@@ -973,7 +974,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     MaterialPageRoute(builder: (_) => const EditArtisanProfileScreen()),
                 );
               },
-            ),
+            )
+            else if (user.role == UserRole.customer)
+              _ProfileOptionTile(
+                icon: Icons.edit,
+                title: 'Edit Profile',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EditCustomerProfileScreen()),
+                  );
+                },
+              ),
             _ProfileOptionTile(
               icon: Icons.logout,
               title: 'Logout',
@@ -1122,19 +1134,28 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).primaryColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                    child: const Icon(Icons.camera_alt, size: 20, color: Colors.white),
                   ),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        Text(
+          photoUrl == null ? 'Tap to add a photo' : 'Tap to change photo',
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).primaryColor,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           widget.user.fullName,
           textAlign: TextAlign.center,

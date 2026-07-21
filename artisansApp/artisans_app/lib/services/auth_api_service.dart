@@ -184,4 +184,21 @@ class AuthApiService {
   Future<Map<String, dynamic>> getMyArtisanProfile() async {
     return await _apiClient.get('/api/auth/me/artisan-profile/');
   }
+
+  // --- Customer profile update ---
+
+  /// Update the current customer's profile (bio, address).
+  /// Only works for customer-role users. Returns the full updated profile.
+  Future<Map<String, dynamic>> updateMyCustomerProfile({String? bio, String? address}) async {
+    final body = <String, dynamic>{};
+    if (bio != null) body['bio'] = bio;
+    if (address != null) body['address'] = address;
+    return await _apiClient.patch('/api/auth/me/customer-profile/', body: body);
+  }
+
+  /// Fetch the current customer's full profile data.
+  /// Only works for customer-role users.
+  Future<Map<String, dynamic>> getMyCustomerProfile() async {
+    return await _apiClient.get('/api/auth/me/customer-profile/');
+  }
 }

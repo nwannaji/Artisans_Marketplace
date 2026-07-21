@@ -229,6 +229,56 @@ class ArtisanProfileSelfUpdateView(APIView):
         return Response(full_serializer.data)
 
 
+class CustomerProfileSelfUpdateView(APIView):
+    """Allow customers to update their own profile fields.
+
+    PATCH /api/auth/me/customer-profile/
+
+    Only the customer themselves can update, and only the fields they
+    should control: bio and address.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_customer_profile(self, user):
+        """Get or create the customer profile for the current user."""
+        profile, created = CustomerProfile.objects.get_or_create(user=user)
+        return profile
+
+    def get(self, request):
+        """Return the current customer's profile data."""
+        if request.user.role != User.Role.CUSTOMER:
+            return Response(
+                {'error': 'Only customer accounts can access this endpoint.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        profile = self.get_customer_profile(request.user)
+
+        from .serializers import CustomerProfileSerializer
+        serializer = CustomerProfileSerializer(profile)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        """Update the current customer's profile."""
+        if request.user.role != User.Role.CUSTOMER:
+            return Response(
+                {'error': 'Only customer accounts can access this endpoint.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        profile = self.get_customer_profile(request.user)
+
+        from .serializers import CustomerProfileSelfUpdateSerializer
+        serializer = CustomerProfileSelfUpdateSerializer(
+            profile, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        # Return full profile data so the client can update its state
+        from .serializers import CustomerProfileSerializer
+        full_serializer = CustomerProfileSerializer(profile)
+        return Response(full_serializer.data)
+
+
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_classes = [PasswordChangeRateThrottle]

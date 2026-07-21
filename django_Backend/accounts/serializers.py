@@ -200,6 +200,19 @@ class ArtisanProfileSelfUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+# Customer self-service profile update serializer
+# Only allows editing fields that the customer themselves should control: bio and address.
+class CustomerProfileSelfUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for customers to update their own profile via
+    PATCH /api/auth/me/customer-profile/
+
+    Only bio and address are editable.
+    """
+    class Meta:
+        model = CustomerProfile
+        fields = ['bio', 'address']
+
+
 # Customer Profile Serializer (for admin customer management)
 class CustomerProfileSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
