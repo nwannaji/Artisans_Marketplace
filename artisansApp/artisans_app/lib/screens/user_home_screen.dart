@@ -2,7 +2,6 @@ import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
-import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
@@ -264,10 +263,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         title: const Text('Find Artisans'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_balance_wallet),
-            onPressed: () => Navigator.pushNamed(context, '/wallet'),
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _initializePage,
           ),
@@ -292,6 +287,55 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       ),
       body: Column(
         children: [
+          // Hero banner with customer persona image
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.85)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 36,
+                  backgroundImage: const AssetImage('assets/images/Persona_Image.png'),
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Find Trusted Artisans',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Search, book & hire professionals near you',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Search bar
           _buildSearchBar(),
           // Profession chips
@@ -788,24 +832,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                   const SizedBox(width: 6),
                   // Context-sensitive action button
-                  if (job.status == JobStatus.awaitingReview && job.escrowHeldAmount > 0)
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.check_circle, size: 16),
-                      label: const Text('Review & Pay'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(0, 32),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                        ).then((_) => _loadMyArtisans());
-                      },
-                    )
-                  else if (job.status == JobStatus.awaitingReview && job.escrowHeldAmount == 0)
+                  if (job.status == JobStatus.awaitingReview)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.check_circle, size: 16),
                       label: const Text('Approve'),
@@ -816,23 +843,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         minimumSize: const Size(0, 32),
                       ),
                       onPressed: () => _approveCompletion(job),
-                    )
-                  else if ((job.status == JobStatus.accepted || job.status == JobStatus.inProgress) && job.escrowHeldAmount == 0)
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.payment, size: 16),
-                      label: const Text('Fund Escrow'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(0, 32),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                        ).then((_) => _loadMyArtisans());
-                      },
                     )
                   else if (job.status == JobStatus.completed && job.rating == null && job.artisanId != null)
                     ElevatedButton.icon(
@@ -845,23 +855,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         minimumSize: const Size(0, 32),
                       ),
                       onPressed: () => _rateArtisan(job),
-                    )
-                  else if (job.status == JobStatus.completed && job.escrowHeldAmount > 0)
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.payment, size: 16),
-                      label: const Text('Pay'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(0, 32),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                        ).then((_) => _loadMyArtisans());
-                      },
                     ),
                 ],
               ),
@@ -897,51 +890,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (confirmed != true) return;
 
     try {
-      final response = await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
+      await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
       if (!mounted) return;
-
-      final escrowReleased = response['escrow_released'] == true;
-      final otpRequired = response['escrow_release_otp_required'] == true;
-
-      if (otpRequired) {
-        // Escrow requires OTP — navigate to EscrowPaymentScreen for OTP entry
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Job approved! Payment requires OTP confirmation.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-        final escrowResult = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EscrowPaymentScreen(
-              jobId: job.id,
-              agreedPrice: job.agreedPrice,
-              job: job,
-            ),
-          ),
-        );
-        if (!mounted) return;
-        if (escrowResult == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Payment released to artisan!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-        _loadMyArtisans();
-        return;
-      }
 
       // Prompt for rating after approval
       final rated = await _showRatingDialog(job);
       if (!mounted) return;
-      String message = rated ? 'Job approved and rated!' : 'Job approved!';
-      if (escrowReleased) {
-        message = rated ? 'Job approved, rated, and payment released!' : 'Job approved! Payment released to artisan.';
-      }
+      final message = rated ? 'Job approved and rated!' : 'Job approved and completed!';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),

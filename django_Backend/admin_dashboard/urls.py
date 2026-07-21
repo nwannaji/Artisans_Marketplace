@@ -25,12 +25,6 @@ urlpatterns = [
     path('jobs/<int:pk>/approve/', views.job_approve, name='job_approve'),
     path('jobs/<int:pk>/reject/', views.job_reject, name='job_reject'),
 
-    # Escrow
-    path('escrow/', views.escrow_list, name='escrow_list'),
-    path('escrow/<int:pk>/', views.escrow_detail, name='escrow_detail'),
-    path('escrow/<int:pk>/release/', views.escrow_release, name='escrow_release'),
-    path('escrow/<int:pk>/refund/', views.escrow_refund, name='escrow_refund'),
-
     # Disputes
     path('disputes/', views.dispute_list, name='dispute_list'),
     path('disputes/<int:pk>/', views.dispute_detail, name='dispute_detail'),
@@ -41,11 +35,4 @@ urlpatterns = [
     path('chats/<int:pk>/', views.conversation_detail, name='conversation_detail'),
     path('chats/<int:conversation_id>/send/', views.admin_send_message, name='admin_send_message'),
 
-    # Settings
-    path('settings/commission/', views.commission_settings, name='commission_settings'),
-
-    # Transactions
-    path('transactions/', views.transaction_list, name='transaction_list'),
-    path('transactions/<int:pk>/complete/', views.transaction_complete, name='transaction_complete'),
-    path('transactions/<int:pk>/fail/', views.transaction_fail, name='transaction_fail'),
 ]

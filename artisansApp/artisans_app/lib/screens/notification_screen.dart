@@ -113,8 +113,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     switch (type.toUpperCase()) {
       case 'BOOKING':
         return Icons.calendar_today;
-      case 'PAYMENT':
-        return Icons.payment;
       case 'DISPUTE':
         return Icons.gavel;
       case 'CHAT':

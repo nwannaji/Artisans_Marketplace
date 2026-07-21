@@ -446,7 +446,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildManagementCards() {
     final cards = [
-      _ManagementCard(icon: Icons.account_balance_wallet, label: 'Escrow\nManagement', color: AppColors.primary, route: '/admin_escrow'),
       _ManagementCard(icon: Icons.people, label: 'Customer\nManagement', color: AppColors.primary, route: '/admin_customers'),
       _ManagementCard(icon: Icons.gavel, label: 'Dispute\nManagement', color: Colors.red, route: '/admin_disputes'),
       _ManagementCard(icon: Icons.chat, label: 'Chat\nMediation', color: AppColors.primary, route: '/admin_chat'),

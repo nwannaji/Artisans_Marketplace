@@ -7,10 +7,8 @@ class Notification(models.Model):
 
     class NotificationType(models.TextChoices):
         JOB_STATUS = 'job_status', 'Job Status'
-        ESCROW = 'escrow', 'Escrow'
         DISPUTE = 'dispute', 'Dispute'
         CHAT = 'chat', 'Chat'
-        PAYMENT = 'payment', 'Payment'
         SYSTEM = 'system', 'System'
 
     user = models.ForeignKey(

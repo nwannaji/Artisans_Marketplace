@@ -222,19 +222,12 @@ class DisputeResolutionTests(TestCase):
             password='StrongPass123!', role='ADMIN', is_active=True, is_staff=True,
         )
 
-        from payments.models import Wallet, AppSettings
-        Wallet.objects.get_or_create(user=self.customer, defaults={'balance': Decimal('0.00')})
-        Wallet.objects.get_or_create(user=self.admin, defaults={'balance': Decimal('0.00')})
-        if self.artisan:
-            Wallet.objects.get_or_create(user=self.artisan, defaults={'balance': Decimal('0.00')})
-        AppSettings.objects.get_or_create(key='commission_rate', defaults={'value': '0.10'})
 
         self.job = Job.objects.create(
             customer=self.customer, artisan=self.artisan_profile,
             description='Resolution test job', agreed_price=Decimal('5000.00'),
             scheduled_time=timezone.now() + timezone.timedelta(days=7),
             location='Lagos', status=Job.Status.DISPUTED,
-            escrow_held_amount=Decimal('5000.00'),
         )
 
         self.dispute = Dispute.objects.create(
@@ -248,7 +241,6 @@ class DisputeResolutionTests(TestCase):
         url = reverse('disputes:dispute-resolve', kwargs={'pk': self.dispute.pk})
         payload = {
             'resolution': 'Partial refund issued to customer.',
-            'resolution_amount': '2000.00',
         }
         resp = self.client.patch(url, payload, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -279,7 +271,7 @@ class DisputeResolutionTests(TestCase):
         """Resolution without a resolution description should fail."""
         self.client.force_authenticate(user=self.admin)
         url = reverse('disputes:dispute-resolve', kwargs={'pk': self.dispute.pk})
-        payload = {'resolution_amount': '2000.00'}
+        payload = {'resolution': ''}
         resp = self.client.patch(url, payload, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 

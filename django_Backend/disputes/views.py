@@ -1,6 +1,4 @@
 import logging
-from decimal import Decimal, InvalidOperation
-
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -84,7 +82,6 @@ class DisputeResolveAPIView(generics.UpdateAPIView):
 
             # Admins can resolve the dispute
             resolution_data = request.data.get('resolution', None)
-            resolution_amount = request.data.get('resolution_amount', None)
 
             if resolution_data is None:
                 return Response(
@@ -96,31 +93,11 @@ class DisputeResolveAPIView(generics.UpdateAPIView):
             dispute.resolved_by = request.user
             dispute.resolved_at = timezone.now()
 
-            # If resolution_amount is provided, handle escrow refund
-            if resolution_amount is not None:
-                try:
-                    resolution_amount = Decimal(str(resolution_amount))
-                    if resolution_amount < 0:
-                        raise InvalidOperation("Negative amount")
-                except (InvalidOperation, ValueError):
-                    return Response(
-                        {"error": "resolution_amount must be a positive number."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                dispute.resolution_amount = resolution_amount
-
-                # If the job has escrow held, process refund
-                job = dispute.job
-                if job.escrow_held_amount and job.escrow_held_amount > 0:
-                    refund_amount = min(resolution_amount, job.escrow_held_amount)
-                    from payments.utils import process_escrow_refund
-                    process_escrow_refund(job, refund_amount)
-
             dispute.status = Dispute.Status.RESOLVED
             dispute.save()
 
-            # Update job status to DISPUTED
-            dispute.job.status = Job.Status.DISPUTED
+            # Update job status to COMPLETED (dispute resolved, work is done)
+            dispute.job.status = Job.Status.COMPLETED
             dispute.job.save(update_fields=['status', 'updated_at'])
 
             logger.info(

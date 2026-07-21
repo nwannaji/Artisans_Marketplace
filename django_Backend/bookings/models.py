@@ -40,9 +40,6 @@ class Job(models.Model):
         default=Status.PENDING,
         db_index=True,
     )
-    escrow_held_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00, blank=True, null=True
-    )
     admin_approved_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

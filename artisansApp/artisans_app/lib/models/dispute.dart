@@ -12,7 +12,6 @@ class Dispute extends Equatable {
   final String details;
   final DisputeStatus status;
   final String? resolution;
-  final double? resolutionAmount;
   final int? resolvedById;
   final DateTime? createdAt;
   final DateTime? resolvedAt;
@@ -24,7 +23,6 @@ class Dispute extends Equatable {
     required this.details,
     this.status = DisputeStatus.open,
     this.resolution,
-    this.resolutionAmount,
     this.resolvedById,
     this.createdAt,
     this.resolvedAt,
@@ -33,7 +31,7 @@ class Dispute extends Equatable {
   @override
   List<Object?> get props => [
     id, jobId, reason, details, status, resolution,
-    resolutionAmount, resolvedById, createdAt, resolvedAt,
+    resolvedById, createdAt, resolvedAt,
   ];
 
   factory Dispute.fromJson(Map<String, dynamic> json) {
@@ -44,7 +42,6 @@ class Dispute extends Equatable {
       details: json['details'] as String? ?? '',
       status: _parseStatus(json['status'] as String?),
       resolution: json['resolution'] as String?,
-      resolutionAmount: _parseDouble(json['resolution_amount']),
       resolvedById: (json['resolved_by_id'] ?? json['resolved_by']) as int?,
       createdAt: _parseDateTime(json['created_at']),
       resolvedAt: _parseDateTime(json['resolved_at']),
@@ -85,14 +82,6 @@ class Dispute extends Equatable {
       case 'closed': return DisputeStatus.closed;
       default: return DisputeStatus.open;
     }
-  }
-
-  static double? _parseDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
   }
 
   static DateTime? _parseDateTime(dynamic value) {

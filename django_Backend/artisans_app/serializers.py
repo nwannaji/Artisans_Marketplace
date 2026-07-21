@@ -1,7 +1,6 @@
 # serializers.py
 from rest_framework import serializers
 from accounts.models import ArtisanProfile
-from bookings.models import Job
 from .models_portfolio import PortfolioImage
 
 
@@ -38,11 +37,8 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at', 'user', 'is_verified')
 
     def get_review_count(self, obj):
-        return Job.objects.filter(
-            artisan=obj,
-            status=Job.Status.COMPLETED,
-            rating__isnull=False,
-        ).count()
+        from reviews.models import Review
+        return Review.objects.filter(artisan=obj).count()
 
     def validate_skills(self, value):
         if not isinstance(value, list):

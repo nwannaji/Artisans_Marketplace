@@ -16,7 +16,7 @@ class DisputeAdmin(admin.ModelAdmin):
             'fields': ('job', 'reason', 'details')
         }),
         ('Resolution', {
-            'fields': ('status', 'resolution', 'resolution_amount', 'resolved_by')
+            'fields': ('status', 'resolution', 'resolved_by')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'resolved_at')

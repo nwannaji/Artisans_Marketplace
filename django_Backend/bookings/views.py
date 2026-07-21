@@ -1,6 +1,4 @@
-from decimal import Decimal
 import logging
-import uuid
 
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -11,7 +9,7 @@ from django.db import transaction as db_transaction
 from django.db.models import Avg, Count, Q
 from accounts.permissions import IsAdminRole
 from .models import Job
-from .serializers import JobSerializer, JobCreateSerializer, JobRatingSerializer, ArtisanReviewSerializer
+from .serializers import JobSerializer, JobCreateSerializer, JobRatingSerializer
 from accounts.models import User
 from accounts.models import ArtisanProfile
 
@@ -256,72 +254,7 @@ class JobStatusUpdateAPIView(generics.UpdateAPIView):
             job.status = new_status
             job.save()
 
-        # Auto-release escrow when customer marks job as COMPLETED
-        escrow_release_otp_required = False
-        escrow_released = False
-        if new_status == Job.Status.COMPLETED and job.escrow_held_amount and job.escrow_held_amount > 0:
-            try:
-                from payments.models import PandascrowEscrow
-                from payments.utils import process_escrow_release, pandascrow_complete_escrow, is_pandascrow_configured, PandascrowAPIError
-
-                pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
-
-                if pandascrow_escrow and pandascrow_escrow.status in (
-                    PandascrowEscrow.Status.INITIALIZED,
-                    PandascrowEscrow.Status.FUNDED,
-                ):
-                    # Pandascrow escrow: attempt automatic release
-                    try:
-                        pandascrow_complete_escrow(escrow_id=pandascrow_escrow.escrow_id)
-                        # Success — update local Pandascrow escrow status
-                        with db_transaction.atomic():
-                            pandascrow_escrow = PandascrowEscrow.objects.select_for_update().get(
-                                pk=pandascrow_escrow.pk
-                            )
-                            pandascrow_escrow.status = PandascrowEscrow.Status.COMPLETED
-                            pandascrow_escrow.save(update_fields=['status', 'updated_at'])
-                            job.escrow_held_amount = Decimal('0.00')
-                            job.save(update_fields=['escrow_held_amount', 'updated_at'])
-
-                        # Create PANDASCROW_RELEASE transaction for record-keeping
-                        from payments.models import Wallet, Transaction
-                        wallet, _ = Wallet.objects.get_or_create(user=job.customer)
-                        Transaction.objects.create(
-                            wallet=wallet,
-                            amount=pandascrow_escrow.amount,
-                            transaction_type=Transaction.Type.PANDASCROW_RELEASE,
-                            status=Transaction.Status.COMPLETED,
-                            reference=f"PRELEASE-AUTO-{job.id}-{uuid.uuid4().hex[:8]}",
-                            job=job,
-                            description=f"Pandascrow escrow auto-released on completion for Job #{job.id}"
-                        )
-                        escrow_released = True
-                        logger.info("Auto-released Pandascrow escrow for job %s on completion", job.id)
-                    except PandascrowAPIError as e:
-                        error_msg = str(e)
-                        if 'otp' in error_msg.lower() or e.status_code == 400:
-                            # OTP required — tell the customer to submit it
-                            escrow_release_otp_required = True
-                            logger.info("Pandascrow escrow release for job %s requires OTP", job.id)
-                        else:
-                            logger.error("Pandascrow auto-release failed for job %s: %s", job.id, error_msg)
-                elif not pandascrow_escrow:
-                    # Internal wallet escrow: release directly
-                    with db_transaction.atomic():
-                        artisan_payout, commission_amount = process_escrow_release(job)
-                    escrow_released = True
-                    logger.info("Auto-released internal escrow for job %s on completion (artisan: ₦%s, commission: ₦%s)",
-                                job.id, artisan_payout, commission_amount)
-            except Exception:
-                # Don't block the status update if escrow release fails
-                logger.exception("Auto escrow release failed for job %s", job.id)
-
-        response_data = JobSerializer(job).data
-        if escrow_released:
-            response_data['escrow_released'] = True
-        if escrow_release_otp_required:
-            response_data['escrow_release_otp_required'] = True
-        return Response(response_data)
+        return Response(JobSerializer(job).data)
 
 
 class JobCreateWithArtisanAPIView(generics.CreateAPIView):
@@ -434,19 +367,28 @@ class JobRatingAPIView(generics.GenericAPIView):
         job.review = serializer.validated_data.get('review', '')
         job.save(update_fields=['rating', 'review'])
 
-        # Recalculate the artisan's aggregate rating and jobs_completed
+        # Also create/update a Review record for this customer-artisan pair
+        from reviews.models import Review
+        Review.objects.update_or_create(
+            customer=job.customer,
+            artisan=job.artisan,
+            defaults={
+                'rating': job.rating,
+                'comment': job.review or '',
+                'job': job,
+            },
+        )
+
+        # Recalculate jobs_completed from completed jobs (reviews handle rating via signal)
         artisan = job.artisan
         agg = Job.objects.filter(
             artisan=artisan,
             status=Job.Status.COMPLETED,
-            rating__isnull=False,
         ).aggregate(
-            avg_rating=Avg('rating'),
             completed_count=Count('id'),
         )
-        artisan.rating = round(agg['avg_rating'] or 0, 1)
         artisan.jobs_completed = agg['completed_count'] or 0
-        artisan.save(update_fields=['rating', 'jobs_completed'])
+        artisan.save(update_fields=['jobs_completed'])
 
         return Response({
             "message": "Rating submitted successfully.",
@@ -456,75 +398,3 @@ class JobRatingAPIView(generics.GenericAPIView):
     def get_object(self):
         from django.shortcuts import get_object_or_404
         return get_object_or_404(Job, pk=self.kwargs['pk'])
-
-
-class ArtisanReviewListView(generics.ListAPIView):
-    """List reviews (rated completed jobs) for a specific artisan.
-
-    GET /api/artisans/<artisan_pk>/reviews/
-
-    Returns paginated reviews plus a rating summary including average rating,
-    total review count, and star distribution. Public endpoint — no auth required.
-    """
-    serializer_class = ArtisanReviewSerializer
-    permission_classes = [permissions.AllowAny]
-    pagination_class = None  # We'll use custom pagination
-
-    def get_queryset(self):
-        artisan_pk = self.kwargs['artisan_pk']
-        return Job.objects.filter(
-            artisan_id=artisan_pk,
-            status=Job.Status.COMPLETED,
-            rating__isnull=False,
-        ).select_related('customer').order_by('-created_at')
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        artisan_pk = self.kwargs['artisan_pk']
-
-        # Pagination: page size of 10
-        page = int(request.query_params.get('page', 1))
-        page_size = 10
-        total_count = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        page_queryset = queryset[start:end]
-
-        serializer = self.get_serializer(page_queryset, many=True)
-
-        # Build rating summary
-        try:
-            artisan = ArtisanProfile.objects.get(pk=artisan_pk)
-        except ArtisanProfile.DoesNotExist:
-            return Response({"error": "Artisan not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        all_rated = queryset  # Already filtered to completed+rated
-        distribution = {}
-        for star in range(5, 0, -1):
-            if star == 5:
-                distribution[str(star)] = all_rated.filter(rating__gte=4.5).count()
-            elif star == 4:
-                distribution[str(star)] = all_rated.filter(rating__gte=3.5, rating__lt=4.5).count()
-            elif star == 3:
-                distribution[str(star)] = all_rated.filter(rating__gte=2.5, rating__lt=3.5).count()
-            elif star == 2:
-                distribution[str(star)] = all_rated.filter(rating__gte=1.5, rating__lt=2.5).count()
-            elif star == 1:
-                distribution[str(star)] = all_rated.filter(rating__gte=0.5, rating__lt=1.5).count()
-
-        summary = {
-            "average_rating": artisan.rating,
-            "total_reviews": total_count,
-            "rating_distribution": distribution,
-        }
-
-        # Build pagination info
-        has_next = end < total_count
-
-        return Response({
-            "count": total_count,
-            "next": f"?page={page + 1}" if has_next else None,
-            "previous": f"?page={page - 1}" if page > 1 else None,
-            "results": serializer.data,
-            "summary": summary,
-        })

@@ -32,6 +32,7 @@
         .htmx-request .htmx-indicator { display: inline-block; }
         .htmx-request .htmx-hide-on-request { display: none; }
         .nav-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm; }
+        .nav-link.nav-logout { @apply text-red-400 hover:text-red-300 font-bold; }
         .nav-link.active { @apply bg-white/15 text-white font-semibold; }
     </style>
     {% block extra_css %}{% endblock %}
@@ -72,10 +73,6 @@
            class="nav-link {% block nav_jobs %}{% endblock %}">
             <i class="bi bi-briefcase w-5 text-center"></i>Jobs
         </a>
-        <a href="{% url 'admin_dashboard:escrow_list' %}"
-           class="nav-link {% block nav_escrow %}{% endblock %}">
-            <i class="bi bi-shield-check w-5 text-center"></i>Escrow
-        </a>
         <a href="{% url 'admin_dashboard:dispute_list' %}"
            class="nav-link {% block nav_disputes %}{% endblock %}">
             <i class="bi bi-exclamation-triangle w-5 text-center"></i>Disputes
@@ -84,19 +81,11 @@
            class="nav-link {% block nav_chats %}{% endblock %}">
             <i class="bi bi-chat-dots w-5 text-center"></i>Chats
         </a>
-        <a href="{% url 'admin_dashboard:commission_settings' %}"
-           class="nav-link {% block nav_settings %}{% endblock %}">
-            <i class="bi bi-sliders w-5 text-center"></i>Settings
-        </a>
-        <a href="{% url 'admin_dashboard:transaction_list' %}"
-           class="nav-link {% block nav_transactions %}{% endblock %}">
-            <i class="bi bi-cash-coin w-5 text-center"></i>Transactions
-        </a>
 
         <div class="border-t border-white/15 my-3"></div>
 
         <a href="{% url 'admin_dashboard:logout' %}"
-           class="nav-link">
+           class="nav-link nav-logout">
             <i class="bi bi-box-arrow-left w-5 text-center"></i>Logout
         </a>
     </nav>

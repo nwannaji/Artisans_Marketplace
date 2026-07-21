@@ -33,8 +33,10 @@ class _LoginPageState extends State<LoginPage> {
       if (!context.mounted) return;
 
       if (user != null) {
-        if (user.role == UserRole.customer || user.role == UserRole.artisan) {
-          Navigator.pushReplacementNamed(context, '/home');
+        if (user.role == UserRole.customer) {
+          Navigator.pushReplacementNamed(context, '/user_home');
+        } else if (user.role == UserRole.artisan) {
+          Navigator.pushReplacementNamed(context, '/artisan_dashboard');
         } else if (user.role == UserRole.admin) {
           Navigator.pushReplacementNamed(context, '/admin_dashboard');
         } else {

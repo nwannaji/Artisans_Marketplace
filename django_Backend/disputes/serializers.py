@@ -8,8 +8,8 @@ class DisputeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Dispute
-        fields = ['id', 'job_id', 'reason', 'details', 'status', 'resolution', 'resolution_amount', 'resolved_by', 'created_at', 'resolved_at']
-        read_only_fields = ['status', 'resolution', 'resolution_amount', 'resolved_by', 'resolved_at']
+        fields = ['id', 'job_id', 'reason', 'details', 'status', 'resolution', 'resolved_by', 'created_at', 'resolved_at']
+        read_only_fields = ['status', 'resolution', 'resolved_by', 'resolved_at']
 
     def create(self, validated_data):
         # Only job_id, reason, and details should be set during creation.

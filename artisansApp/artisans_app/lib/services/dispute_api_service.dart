@@ -37,10 +37,8 @@ class DisputeApiService {
   /// Resolve a dispute (admin only)
   Future<Dispute> resolveDispute(int pk, {
     required String resolution,
-    double? resolutionAmount,
   }) async {
     final body = <String, dynamic>{'resolution': resolution};
-    if (resolutionAmount != null) body['resolution_amount'] = resolutionAmount.toString();
 
     final result = await _apiClient.patch('/api/disputes/disputes/resolve/$pk/', body: body);
     return Dispute.fromJson(result);

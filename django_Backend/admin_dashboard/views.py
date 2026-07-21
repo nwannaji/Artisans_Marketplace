@@ -2,23 +2,16 @@ import logging
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from django.db.models import Count, Sum, Q, Avg
+from django.db.models import Count, Q
 from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
-from decimal import Decimal
-
 from .decorators import admin_required
-from .forms import (
-    LoginForm, DisputeResolveForm, CommissionSettingsForm,
-    ChatMessageForm, EscrowRefundForm,
-)
+from .forms import LoginForm, DisputeResolveForm, ChatMessageForm
 from accounts.models import User, ArtisanProfile, CustomerProfile
 from bookings.models import Job
-from payments.models import Wallet, Transaction, AppSettings, BankAccount, PandascrowEscrow
-from payments.utils import process_escrow_release, process_escrow_refund
 from chats.models import Conversation, Chat
 from disputes.models import Dispute
 
@@ -82,17 +75,8 @@ def dashboard_overview(request):
         Job.objects.values('status').annotate(count=Count('id')).values_list('status', 'count')
     )
 
-    total_escrow_held = Job.objects.filter(
-        escrow_held_amount__gt=0
-    ).aggregate(total=Sum('escrow_held_amount'))['total'] or Decimal('0')
-
     open_disputes = Dispute.objects.filter(
         status__in=[Dispute.Status.OPEN, Dispute.Status.IN_REVIEW]
-    ).count()
-
-    pending_deposits = Transaction.objects.filter(
-        transaction_type=Transaction.Type.DEPOSIT,
-        status=Transaction.Status.PENDING
     ).count()
 
     recent_jobs = Job.objects.select_related(
@@ -116,9 +100,7 @@ def dashboard_overview(request):
         'completed_jobs': job_status_counts.get(Job.Status.COMPLETED, 0),
         'cancelled_jobs': job_status_counts.get(Job.Status.CANCELLED, 0),
         'disputed_jobs': job_status_counts.get(Job.Status.DISPUTED, 0),
-        'total_escrow_held': total_escrow_held,
         'open_disputes': open_disputes,
-        'pending_deposits': pending_deposits,
         'recent_jobs': recent_jobs,
         'recent_disputes': recent_disputes,
     }
@@ -194,19 +176,11 @@ def user_detail(request, pk):
     else:
         jobs = []
 
-    # Get wallet
-    wallet = None
-    try:
-        wallet = user.wallet
-    except Wallet.DoesNotExist:
-        pass
-
     context = {
         'user_obj': user,
         'profile': profile,
         'profile_type': profile_type,
         'jobs': jobs,
-        'wallet': wallet,
     }
     return render(request, 'admin_dashboard/users/detail.html', context)
 
@@ -277,15 +251,11 @@ def artisan_detail(request, pk):
     profile = get_object_or_404(ArtisanProfile, pk=pk)
     jobs = Job.objects.filter(artisan=profile).select_related('customer').order_by('-created_at')[:10]
     review_count = Job.objects.filter(artisan=profile, status=Job.Status.COMPLETED, rating__isnull=False).count()
-    bank_accounts = BankAccount.objects.filter(user=profile.user).order_by('-is_default', '-created_at')
-    wallet, _ = Wallet.objects.get_or_create(user=profile.user)
 
     context = {
         'profile': profile,
         'jobs': jobs,
         'review_count': review_count,
-        'bank_accounts': bank_accounts,
-        'wallet': wallet,
     }
     return render(request, 'admin_dashboard/artisans/detail.html', context)
 
@@ -386,135 +356,6 @@ def job_reject(request, pk):
 
 
 # ========================
-# Escrow Management
-# ========================
-
-@admin_required
-def escrow_list(request):
-    """List all jobs with held escrow."""
-    qs = Job.objects.filter(
-        escrow_held_amount__gt=0
-    ).select_related('customer', 'artisan__user', 'pandascrow_escrow').order_by('-created_at')
-
-    paginator = Paginator(qs, 25)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-
-    context = {'page_obj': page_obj}
-    return render(request, 'admin_dashboard/escrow/list.html', context)
-
-
-@admin_required
-def escrow_detail(request, pk):
-    """Escrow detail page with release/refund actions."""
-    job = get_object_or_404(Job.objects.select_related('pandascrow_escrow'), pk=pk)
-    transactions = Transaction.objects.filter(job=job).select_related('wallet__user').order_by('-created_at')
-
-    pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
-    context = {
-        'job': job,
-        'transactions': transactions,
-        'pandascrow_escrow': pandascrow_escrow,
-    }
-    return render(request, 'admin_dashboard/escrow/detail.html', context)
-
-
-@admin_required
-@require_POST
-def escrow_release(request, pk):
-    """Release escrow to artisan. Routes to Pandascrow or internal based on escrow type."""
-    with db_transaction.atomic():
-        job = Job.objects.select_for_update().get(pk=pk)
-        if not job.escrow_held_amount or job.escrow_held_amount <= 0:
-            messages.error(request, 'No escrow held for this job.')
-            return redirect('admin_dashboard:escrow_detail', pk=pk)
-        if not job.artisan:
-            messages.error(request, 'No artisan assigned to this job.')
-            return redirect('admin_dashboard:escrow_detail', pk=pk)
-        if job.status not in [Job.Status.IN_PROGRESS, Job.Status.COMPLETED]:
-            messages.error(request, 'Job must be IN_PROGRESS or COMPLETED to release escrow.')
-            return redirect('admin_dashboard:escrow_detail', pk=pk)
-
-        pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
-
-        if pandascrow_escrow:
-            # Release via Pandascrow
-            from payments.utils import pandascrow_complete_escrow, PandascrowAPIError
-            try:
-                pandascrow_complete_escrow(escrow_id=pandascrow_escrow.escrow_id)
-                pandascrow_escrow.status = PandascrowEscrow.Status.COMPLETED
-                pandascrow_escrow.save(update_fields=['status', 'updated_at'])
-                job.escrow_held_amount = Decimal('0.00')
-                if job.status != Job.Status.COMPLETED:
-                    job.status = Job.Status.COMPLETED
-                    job.save(update_fields=['status', 'escrow_held_amount', 'updated_at'])
-                else:
-                    job.save(update_fields=['escrow_held_amount', 'updated_at'])
-                messages.success(request, f'Escrow released via Pandascrow. Escrow ID: {pandascrow_escrow.escrow_id}')
-            except PandascrowAPIError as e:
-                messages.error(request, f'Failed to release escrow via Pandascrow: {e}')
-                return redirect('admin_dashboard:escrow_detail', pk=pk)
-        else:
-            # Legacy internal wallet release
-            artisan_payout, commission_amount = process_escrow_release(job)
-            if job.status != Job.Status.COMPLETED:
-                job.status = Job.Status.COMPLETED
-                job.save(update_fields=['status', 'updated_at'])
-            messages.success(request, f'Escrow released. Artisan payout: ₦{artisan_payout}, Commission: ₦{commission_amount}')
-
-    return redirect('admin_dashboard:escrow_detail', pk=pk)
-
-
-@admin_required
-@require_POST
-def escrow_refund(request, pk):
-    """Refund escrow to customer. Routes to Pandascrow cancel or internal refund."""
-    form = EscrowRefundForm(request.POST)
-
-    with db_transaction.atomic():
-        job = Job.objects.select_for_update().get(pk=pk)
-
-        if not job.escrow_held_amount or job.escrow_held_amount <= 0:
-            messages.error(request, 'No escrow held for this job.')
-            db_transaction.set_rollback(True)
-            return redirect('admin_dashboard:escrow_detail', pk=pk)
-
-        pandascrow_escrow = getattr(job, 'pandascrow_escrow', None)
-
-        if pandascrow_escrow:
-            # Refund via Pandascrow cancel
-            from payments.utils import pandascrow_cancel_escrow, PandascrowAPIError
-            try:
-                pandascrow_cancel_escrow(escrow_id=pandascrow_escrow.escrow_id)
-                pandascrow_escrow.status = PandascrowEscrow.Status.REFUNDED
-                pandascrow_escrow.save(update_fields=['status', 'updated_at'])
-                refund_amount = job.escrow_held_amount
-                job.escrow_held_amount = Decimal('0.00')
-                job.save(update_fields=['escrow_held_amount', 'updated_at'])
-                messages.success(request, f'₦{refund_amount} refunded via Pandascrow.')
-            except PandascrowAPIError as e:
-                messages.error(request, f'Failed to refund via Pandascrow: {e}')
-                return redirect('admin_dashboard:escrow_detail', pk=pk)
-        else:
-            # Legacy internal wallet refund
-            if form.is_valid() and form.cleaned_data.get('full_refund'):
-                refund_amount = job.escrow_held_amount
-            elif form.is_valid() and form.cleaned_data.get('refund_amount'):
-                refund_amount = form.cleaned_data['refund_amount']
-                if refund_amount > job.escrow_held_amount:
-                    messages.error(request, f'Refund amount cannot exceed ₦{job.escrow_held_amount}')
-                    db_transaction.set_rollback(True)
-                    return redirect('admin_dashboard:escrow_detail', pk=pk)
-            else:
-                refund_amount = job.escrow_held_amount
-
-            process_escrow_refund(job, refund_amount)
-            messages.success(request, f'₦{refund_amount} refunded to customer.')
-
-    return redirect('admin_dashboard:escrow_detail', pk=pk)
-
-
-# ========================
 # Dispute Management
 # ========================
 
@@ -547,12 +388,10 @@ def dispute_detail(request, pk):
     """Dispute detail page with resolution form."""
     dispute = get_object_or_404(Dispute, pk=pk)
     job = dispute.job
-    transactions = Transaction.objects.filter(job=job).select_related('wallet__user').order_by('-created_at')
 
     context = {
         'dispute': dispute,
         'job': job,
-        'transactions': transactions,
         'form': DisputeResolveForm(),
     }
     return render(request, 'admin_dashboard/disputes/detail.html', context)
@@ -570,8 +409,6 @@ def dispute_resolve(request, pk):
         return redirect('admin_dashboard:dispute_detail', pk=pk)
 
     resolution = form.cleaned_data['resolution']
-    refund_amount = form.cleaned_data.get('refund_amount')
-    full_refund = form.cleaned_data.get('full_refund')
 
     with db_transaction.atomic():
         dispute = Dispute.objects.select_for_update().get(pk=pk)
@@ -579,17 +416,10 @@ def dispute_resolve(request, pk):
         dispute.resolved_by = request.user
         dispute.resolved_at = timezone.now()
 
-        job = dispute.job
-        if full_refund and job.escrow_held_amount and job.escrow_held_amount > 0:
-            process_escrow_refund(job, job.escrow_held_amount)
-            refund_amount = job.escrow_held_amount
-        elif refund_amount and job.escrow_held_amount and job.escrow_held_amount > 0:
-            actual_refund = min(refund_amount, job.escrow_held_amount)
-            process_escrow_refund(job, actual_refund)
-
         dispute.status = Dispute.Status.RESOLVED
         dispute.save()
 
+        job = dispute.job
         job.status = Job.Status.DISPUTED
         job.save(update_fields=['status', 'updated_at'])
 
@@ -671,176 +501,3 @@ def admin_send_message(request, conversation_id):
     return redirect('admin_dashboard:conversation_detail', pk=conversation_id)
 
 
-# ========================
-# Settings
-# ========================
-
-@admin_required
-def commission_settings(request):
-    """View and update commission rate.
-
-    The form accepts percentages (e.g., 10 for 10%) and converts
-    to/from the decimal stored in AppSettings (e.g., 0.10).
-    """
-    current_rate_decimal = AppSettings.get_commission_rate()  # e.g. Decimal('0.10')
-    current_rate_pct = current_rate_decimal * Decimal('100')    # e.g. Decimal('10.00')
-
-    if request.method == 'POST':
-        form = CommissionSettingsForm(request.POST)
-        if form.is_valid():
-            pct_value = form.cleaned_data['commission_rate']  # e.g. Decimal('10.00')
-            decimal_value = pct_value / Decimal('100')       # e.g. Decimal('0.10')
-            old_value = AppSettings.get_value('commission_rate')
-            AppSettings.objects.update_or_create(
-                key='commission_rate',
-                defaults={'value': str(decimal_value)}
-            )
-            # Log the change
-            AppSettings.objects.update_or_create(
-                key=f'commission_rate_change_{timezone.now().strftime("%Y%m%d%H%M%S")}',
-                defaults={'value': f'new={decimal_value};old={old_value};by={request.user.username}'}
-            )
-            messages.success(request, f'Commission rate updated to {float(pct_value):.1f}%')
-            return redirect('admin_dashboard:commission_settings')
-    else:
-        form = CommissionSettingsForm(initial={'commission_rate': current_rate_pct})
-
-    # Commission revenue stats
-    # Total from explicit COMMISSION transactions (escrow-released jobs)
-    recorded_commission = Transaction.objects.filter(
-        transaction_type=Transaction.Type.COMMISSION,
-        status=Transaction.Status.COMPLETED
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-
-    # Backfill: completed jobs that bypassed the escrow flow (no COMMISSION transaction)
-    # and have an agreed_price but no escrow_held_amount
-    jobs_with_commission = Transaction.objects.filter(
-        transaction_type=Transaction.Type.COMMISSION,
-        status=Transaction.Status.COMPLETED,
-    ).values_list('job_id', flat=True)
-
-    backfill_commission = Decimal('0')
-    for job in Job.objects.filter(
-        status=Job.Status.COMPLETED,
-        escrow_held_amount=0,
-        agreed_price__gt=0,
-    ).exclude(id__in=jobs_with_commission):
-        backfill_commission += (job.agreed_price or Decimal('0')) * current_rate_decimal
-
-    total_commission = recorded_commission + backfill_commission
-
-    completed_jobs = Job.objects.filter(status=Job.Status.COMPLETED).count()
-
-    # Recent commission changes
-    recent_changes = []
-    for setting in AppSettings.objects.filter(
-        key__startswith='commission_rate_change_'
-    ).order_by('-pk')[:10]:
-        # Parse: new=0.10;old=0.05;by=admin
-        parts = {}
-        for part in setting.value.split(';'):
-            if '=' in part:
-                k, v = part.split('=', 1)
-                parts[k.strip()] = v.strip()
-        recent_changes.append({
-            'new_value': Decimal(parts.get('new', '0')) * Decimal('100'),
-            'old_value': Decimal(parts.get('old', '0')) * Decimal('100') if parts.get('old') else None,
-            'changed_by': type('U', (), {'username': parts.get('by', 'System')})(),
-            'created_at': setting.pk  # Approximate — real date would need a created_at field
-        })
-
-    context = {
-        'form': form,
-        'current_rate': float(current_rate_pct),
-        'total_commission': total_commission,
-        'completed_jobs': completed_jobs,
-        'recent_changes': recent_changes,
-    }
-    return render(request, 'admin_dashboard/settings/commission.html', context)
-
-
-# ========================
-# Transaction / Deposit Management
-# ========================
-
-@admin_required
-def transaction_list(request):
-    """List all transactions with filters."""
-    status_filter = request.GET.get('status', '')
-    type_filter = request.GET.get('type', '')
-    search = request.GET.get('search', '')
-
-    transactions = Transaction.objects.select_related(
-        'wallet__user'
-    ).order_by('-created_at')
-
-    if status_filter:
-        transactions = transactions.filter(status=status_filter)
-    if type_filter:
-        transactions = transactions.filter(transaction_type=type_filter)
-    if search:
-        transactions = transactions.filter(
-            Q(reference__icontains=search) | Q(wallet__user__username__icontains=search)
-        )
-
-    paginator = Paginator(transactions, 25)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'page_obj': page_obj,
-        'status_filter': status_filter,
-        'type_filter': type_filter,
-        'search': search,
-        'status_choices': Transaction.Status.choices,
-        'type_choices': Transaction.Type.choices,
-    }
-    return render(request, 'admin_dashboard/transactions/list.html', context)
-
-
-@admin_required
-def transaction_complete(request, pk):
-    """Admin manually completes a PENDING deposit — credits the wallet.
-
-    This is for development/testing when Paystack callbacks are not available,
-    or for manual approval in production.
-    """
-    transaction = get_object_or_404(Transaction, pk=pk)
-
-    if transaction.status != Transaction.Status.PENDING:
-        messages.error(request, f'Transaction is {transaction.get_status_display()}, not PENDING.')
-        return redirect('admin_dashboard:transaction_list')
-
-    if transaction.transaction_type != Transaction.Type.DEPOSIT:
-        messages.error(request, 'Only DEPOSIT transactions can be manually completed from here.')
-        return redirect('admin_dashboard:transaction_list')
-
-    with db_transaction.atomic():
-        wallet = Wallet.objects.select_for_update().get(pk=transaction.wallet.pk)
-        wallet.balance += transaction.amount
-        wallet.save(update_fields=['balance', 'updated_at'])
-        transaction.status = Transaction.Status.COMPLETED
-        transaction.save(update_fields=['status'])
-
-    messages.success(
-        request,
-        f'Deposit of ₦{transaction.amount} completed for {transaction.wallet.user.username}. '
-        f'New balance: ₦{wallet.balance}'
-    )
-    return redirect('admin_dashboard:transaction_list')
-
-
-@admin_required
-def transaction_fail(request, pk):
-    """Admin marks a PENDING transaction as FAILED."""
-    transaction = get_object_or_404(Transaction, pk=pk)
-
-    if transaction.status != Transaction.Status.PENDING:
-        messages.error(request, f'Transaction is {transaction.get_status_display()}, not PENDING.')
-        return redirect('admin_dashboard:transaction_list')
-
-    transaction.status = Transaction.Status.FAILED
-    transaction.save(update_fields=['status'])
-
-    messages.success(request, f'Transaction {transaction.reference} marked as FAILED.')
-    return redirect('admin_dashboard:transaction_list')

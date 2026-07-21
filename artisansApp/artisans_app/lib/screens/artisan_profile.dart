@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:artisans_app/models/artisan.dart';
-import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/models/review.dart';
 import 'package:artisans_app/models/user.dart';
 import 'package:artisans_app/screens/account_settings_screen.dart';
@@ -46,9 +45,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _hasMoreReviews = false;
   RatingSummary? _ratingSummary;
 
-  // Unrated jobs state (all unrated completed jobs, not just one)
-  List<Job> _unratedJobs = [];
-  bool _isCheckingJobs = false;
+  // My review state (the current user's review for this artisan)
+  Review? _myReview;
+  bool _isLoadingMyReview = false;
 
   @override
   void initState() {
@@ -69,10 +68,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (widget.artisanId != null && widget.artisanData == null) {
           _loadArtisanProfile();
         }
-        // Load reviews and check for unrated jobs on artisan profiles
+        // Load reviews and check for existing review on artisan profiles
         if (widget.artisanId != null) {
           _loadReviews();
-          _checkForUnratedJobs();
+          _fetchMyReview();
         }
       });
     }
@@ -113,46 +112,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoadingReviews = false);
   }
 
-  /// Check if the current user has any completed-but-unrated jobs with this artisan.
-  Future<void> _checkForUnratedJobs() async {
-    setState(() => _isCheckingJobs = true);
+  /// Fetch the current user's review for this artisan (if any).
+  Future<void> _fetchMyReview() async {
+    setState(() => _isLoadingMyReview = true);
     try {
-      final jobs = await BookingApiService().listJobs(status: 'COMPLETED');
-      setState(() {
-        _unratedJobs = jobs.where((j) =>
-          j.artisanId == widget.artisanId && j.rating == null
-        ).toList();
-      });
+      final role = await AuthApiService().getUserRole();
+      if (role != 'CUSTOMER') {
+        // Only customers can review
+        setState(() => _isLoadingMyReview = false);
+        return;
+      }
+      final myReview = await ArtisanApiService().getMyReviewForArtisan(widget.artisanId!);
+      if (mounted) {
+        setState(() => _myReview = myReview);
+      }
     } catch (e) {
-      debugPrint('Error checking for unrated jobs: $e');
+      debugPrint('Error fetching my review: $e');
     }
-    setState(() => _isCheckingJobs = false);
+    if (mounted) {
+      setState(() => _isLoadingMyReview = false);
+    }
   }
 
-  /// Show a rating dialog for a specific job.
-  Future<void> _rateArtisan(Job job) async {
-    double selectedRating = 0;
-    final reviewController = TextEditingController();
+  /// Show a review dialog (create or update).
+  Future<void> _showReviewDialog({Review? existing}) async {
+    double selectedRating = existing?.rating ?? 0;
+    final reviewController = TextEditingController(text: existing?.displayComment ?? '');
+    final isUpdate = existing != null;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Rate this artisan'),
+          title: Text(isUpdate ? 'Update your review' : 'Rate this artisan'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Rate ${_viewedArtisan?.fullName ?? "this artisan"}\'s work',
-                    style: const TextStyle(fontSize: 14, color: Colors.black54)),
-                const SizedBox(height: 4),
-                // Show the job description so the customer remembers the context
-                Text('Job: "${job.description}"',
-                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black45)),
+                Text(
+                  isUpdate
+                      ? 'Update your review for ${_viewedArtisan?.fullName ?? "this artisan"}'
+                      : 'Rate ${_viewedArtisan?.fullName ?? "this artisan"}\'s work',
+                  style: const TextStyle(fontSize: 14, color: Colors.black54),
+                ),
                 const SizedBox(height: 16),
                 RatingSelector(
-                  initialRating: 0,
+                  initialRating: selectedRating,
                   onRatingSelected: (rating) {
                     setDialogState(() => selectedRating = rating);
                   },
@@ -164,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: reviewController,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Review (optional)',
+                    labelText: 'Comment (optional)',
                     hintText: 'How was your experience?',
                     border: OutlineInputBorder(),
                     alignLabelWithHint: true,
@@ -184,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Submit Rating'),
+              child: Text(isUpdate ? 'Update Review' : 'Submit Rating'),
             ),
           ],
         ),
@@ -192,36 +198,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (result == true && selectedRating > 0) {
-      try {
-        await BookingApiService().rateJob(
-          job.id,
-          selectedRating,
-          review: reviewController.text,
+      await _submitReview(
+        rating: selectedRating,
+        comment: reviewController.text,
+        existingReview: existing,
+      );
+    }
+  }
+
+  /// Submit a review (create or update).
+  Future<void> _submitReview({
+    required double rating,
+    String? comment,
+    Review? existingReview,
+  }) async {
+    try {
+      if (existingReview != null) {
+        // Update existing review
+        await ArtisanApiService().updateReview(
+          existingReview.id,
+          rating: rating,
+          comment: comment,
         );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Rating submitted! Thank you for your feedback.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Refresh the artisan profile to show updated rating
-        await _loadArtisanProfile();
-        // Refresh reviews list to show the new review
-        await _loadReviews(page: 1);
-        // Remove the rated job from unrated jobs
-        setState(() {
-          _unratedJobs = _unratedJobs.where((j) => j.id != job.id).toList();
-        });
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to submit rating: $e'),
-            backgroundColor: Colors.red,
-          ),
+      } else {
+        // Create new review
+        await ArtisanApiService().createReview(
+          widget.artisanId!,
+          rating: rating,
+          comment: comment,
         );
       }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(existingReview != null ? 'Review updated!' : 'Review submitted! Thank you for your feedback.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Refresh all review data
+      await _loadReviews(page: 1);
+      await _loadArtisanProfile();
+      await _fetchMyReview();
+    } catch (e) {
+      if (!mounted) return;
+      String errorMsg = 'Failed to submit review';
+      if (e is ApiException) {
+        errorMsg = e.fullMessage;
+      } else {
+        errorMsg = 'Failed to submit review: $e';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  /// Delete the current user's review for this artisan.
+  Future<void> _deleteMyReview() async {
+    if (_myReview == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Review'),
+        content: const Text('Are you sure you want to delete your review?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ArtisanApiService().deleteReview(_myReview!.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review deleted.'), backgroundColor: Colors.green),
+      );
+      setState(() => _myReview = null);
+      await _loadReviews(page: 1);
+      await _loadArtisanProfile();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete review: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -465,11 +530,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         const SizedBox(height: 16),
 
-        // Write a review CTA (only for customers with unrated completed jobs)
-        if (_unratedJobs.isNotEmpty)
-          _buildReviewCTA(a)
-        else if (_isCheckingJobs)
-          const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+        // Review action section (write/update/delete review)
+        _buildReviewSection(a),
 
         const SizedBox(height: 16),
 
@@ -624,8 +686,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// "Write a Review" CTA card for customers with unrated completed jobs.
-  Widget _buildReviewCTA(Artisan a) {
+  /// Review action section — always visible for customers.
+  /// Shows "Write a Review" button or the user's existing review with edit/delete.
+  Widget _buildReviewSection(Artisan a) {
+    // Only show for authenticated customers (not for own profile or other roles)
+    final viewModel = Provider.of<ProfileViewModel>(context, listen: false);
+    final user = viewModel.user;
+    if (user == null || user.role != UserRole.customer) {
+      return const SizedBox.shrink();
+    }
+    // Don't show if viewing own profile (shouldn't happen, but safety check)
+    if (user.id == a.userId) {
+      return const SizedBox.shrink();
+    }
+
+    if (_isLoadingMyReview) {
+      return const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+
+    if (_myReview != null) {
+      // Customer already has a review — show it with edit/delete options
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: Colors.blue.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.star, color: Colors.blue, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Your Review',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.blue.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            StarRatingDisplay(rating: _myReview!.rating, starSize: 18),
+            if (_myReview!.displayComment != null && _myReview!.displayComment!.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                '"${_myReview!.displayComment}"',
+                style: TextStyle(fontSize: 13, color: Colors.blue.shade700, fontStyle: FontStyle.italic),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    textStyle: const TextStyle(fontSize: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showReviewDialog(existing: _myReview),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('Delete'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    textStyle: const TextStyle(fontSize: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: _deleteMyReview,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Customer hasn't reviewed yet — show "Write a Review" button
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -654,41 +805,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _unratedJobs.length == 1
-                ? 'You had a completed job with ${a.fullName}. How was it?'
-                : 'You have ${_unratedJobs.length} completed job${_unratedJobs.length != 1 ? "s" : ""} with ${a.fullName} that you haven\'t rated yet.',
+            'How was your experience with ${a.fullName}?',
             style: TextStyle(fontSize: 13, color: Colors.amber[900]),
           ),
           const SizedBox(height: 12),
-          // Show each unrated job with a "Rate" button
-          ..._unratedJobs.map((job) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    job.description,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.star_border, size: 16),
-                  label: const Text('Rate'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber[700],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    textStyle: const TextStyle(fontSize: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () => _rateArtisan(job),
-                ),
-              ],
+          ElevatedButton.icon(
+            icon: const Icon(Icons.star_border, size: 16),
+            label: const Text('Write a Review'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-          )),
+            onPressed: () => _showReviewDialog(),
+          ),
         ],
       ),
     );
@@ -745,10 +876,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             // Review text
-            if (review.review != null && review.review!.trim().isNotEmpty) ...[
+            if (review.displayComment != null && review.displayComment!.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                '"${review.review}"',
+                '"${review.displayComment}"',
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey.shade700,
@@ -756,8 +887,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ],
-            // Job description
-            if (review.description != null && review.description!.trim().isNotEmpty) ...[
+            // Job context (if this review came from a rated job)
+            if (review.hasJobContext && review.jobDescription != null && review.jobDescription!.trim().isNotEmpty) ...[
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -765,7 +896,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      review.description!,
+                      review.jobDescription!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade500),

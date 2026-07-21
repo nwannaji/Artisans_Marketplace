@@ -5,7 +5,6 @@ from django.dispatch import receiver
 
 from bookings.models import Job
 from disputes.models import Dispute
-from payments.models import Transaction
 
 from .models import Notification
 from .utils import create_notification
@@ -124,97 +123,3 @@ def notify_dispute_created(sender, instance, created, **kwargs):
                     related_object_id=dispute.id,
                 )
 
-
-@receiver(post_save, sender=Transaction)
-def notify_escrow_events(sender, instance, created, **kwargs):
-    """Send notifications for escrow-related transaction events.
-
-    Fires when an ESCROW_HOLD (funding) or ESCROW_RELEASE (release) transaction
-    is completed. Handles both newly-created completed transactions and
-    status updates (e.g. PANDASCROW_FUND transitioning to COMPLETED via webhook).
-    """
-    transaction = instance
-
-    # Only notify for completed escrow transactions
-    if transaction.status != Transaction.Status.COMPLETED:
-        return
-
-    # Avoid duplicate notifications: only send when newly created
-    # or when status changed to COMPLETED (tracked by checking if created OR
-    # if this is an update that changed status)
-    if not created:
-        # For updates, only notify if the status field changed to COMPLETED.
-        # We can't easily check old vs new status in post_save, so we rely on
-        # a simple heuristic: if this is an update and the transaction is now
-        # COMPLETED, it likely just transitioned from PENDING. Send notification.
-        pass  # Allow update-triggered notifications for PANDASCROW_FUND completions
-
-    if transaction.transaction_type == Transaction.Type.ESCROW_HOLD:
-        # Escrow funded — notify the customer and artisan
-        job = transaction.job
-        if job:
-            create_notification(
-                user=job.customer,
-                notification_type=Notification.NotificationType.ESCROW,
-                title='Escrow Funded',
-                message=f'Your payment of ₦{transaction.amount} for job #{job.id} has been held in escrow.',
-                related_object_type='job',
-                related_object_id=job.id,
-            )
-            if job.artisan and job.artisan.user:
-                create_notification(
-                    user=job.artisan.user,
-                    notification_type=Notification.NotificationType.ESCROW,
-                    title='Escrow Funded',
-                    message=f'Payment of ₦{transaction.amount} for job #{job.id} has been secured in escrow.',
-                    related_object_type='job',
-                    related_object_id=job.id,
-                )
-
-    elif transaction.transaction_type == Transaction.Type.ESCROW_RELEASE:
-        # Escrow released — notify the artisan about payment
-        job = transaction.job
-        if job:
-            if job.artisan and job.artisan.user:
-                create_notification(
-                    user=job.artisan.user,
-                    notification_type=Notification.NotificationType.ESCROW,
-                    title='Escrow Released',
-                    message=f'Escrow payment of ₦{transaction.amount} for job #{job.id} has been released to your wallet.',
-                    related_object_type='job',
-                    related_object_id=job.id,
-                )
-            create_notification(
-                user=job.customer,
-                notification_type=Notification.NotificationType.ESCROW,
-                title='Escrow Released',
-                message=f'Escrow payment of ₦{transaction.amount} for job #{job.id} has been released.',
-                related_object_type='job',
-                related_object_id=job.id,
-            )
-
-    elif transaction.transaction_type in (
-        Transaction.Type.PANDASCROW_FUND,
-        Transaction.Type.PANDASCROW_RELEASE,
-    ):
-        # Pandascrow escrow events — notify when completed (via webhook update)
-        job = transaction.job
-        if job:
-            title = 'Escrow Funded' if transaction.transaction_type == Transaction.Type.PANDASCROW_FUND else 'Escrow Released'
-            create_notification(
-                user=job.customer,
-                notification_type=Notification.NotificationType.ESCROW,
-                title=title,
-                message=f'Payment of ₦{transaction.amount} for job #{job.id} has been {"held in escrow" if transaction.transaction_type == Transaction.Type.PANDASCROW_FUND else "released"}.',
-                related_object_type='job',
-                related_object_id=job.id,
-            )
-            if job.artisan and job.artisan.user:
-                create_notification(
-                    user=job.artisan.user,
-                    notification_type=Notification.NotificationType.ESCROW,
-                    title=title,
-                    message=f'Payment of ₦{transaction.amount} for job #{job.id} has been {"secured in escrow" if transaction.transaction_type == Transaction.Type.PANDASCROW_FUND else "released to your wallet"}.',
-                    related_object_type='job',
-                    related_object_id=job.id,
-                )

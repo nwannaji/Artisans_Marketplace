@@ -3,6 +3,7 @@
 import '../models/artisan.dart';
 import '../models/review.dart';
 import 'api_client.dart';
+import 'api_exception.dart';
 
 class ArtisanApiService {
   final ApiClient _apiClient = ApiClient();
@@ -169,5 +170,46 @@ class ArtisanApiService {
       'previous': result['previous'],
       'count': result['count'] ?? reviews.length,
     };
+  }
+
+  /// Create a review for an artisan (customer only).
+  Future<Map<String, dynamic>> createReview(int artisanId, {
+    required double rating,
+    String? comment,
+  }) async {
+    final body = <String, dynamic>{'rating': rating};
+    if (comment != null && comment.trim().isNotEmpty) {
+      body['comment'] = comment.trim();
+    }
+    return await _apiClient.post('/api/artisans/$artisanId/reviews/', body: body);
+  }
+
+  /// Get the current user's review for a specific artisan.
+  /// Returns null if the user hasn't reviewed this artisan (404).
+  Future<Review?> getMyReviewForArtisan(int artisanId) async {
+    try {
+      final result = await _apiClient.get('/api/artisans/$artisanId/reviews/mine/');
+      return Review.fromJson(result);
+    } catch (e) {
+      // 404 means the user hasn't reviewed this artisan
+      if (e is ApiException && e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// Update an existing review.
+  Future<Map<String, dynamic>> updateReview(int reviewId, {
+    double? rating,
+    String? comment,
+  }) async {
+    final body = <String, dynamic>{};
+    if (rating != null) body['rating'] = rating;
+    if (comment != null) body['comment'] = comment;
+    return await _apiClient.patch('/api/reviews/$reviewId/', body: body);
+  }
+
+  /// Delete a review.
+  Future<void> deleteReview(int reviewId) async {
+    await _apiClient.delete('/api/reviews/$reviewId/');
   }
 }

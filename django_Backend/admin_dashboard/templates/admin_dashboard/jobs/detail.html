@@ -44,7 +44,6 @@
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Description</span><span class="font-medium">{{ job.description }}</span></div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Location</span><span class="font-medium">{{ job.location }}</span></div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Agreed Price</span><span class="font-bold text-brand">{{ job.agreed_price|naira }}</span></div>
-                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Held</span>{% if job.escrow_held_amount %}<span class="font-bold text-purple-700">{{ job.escrow_held_amount|naira }}</span>{% else %}<span class="text-gray-400">—</span>{% endif %}</div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Scheduled</span><span class="font-medium">{{ job.scheduled_time|date:"M d, Y h:i A" }}</span></div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium">{{ job.created_at|date:"M d, Y h:i A" }}</span></div>
                 {% if job.admin_approved_by %}
@@ -78,22 +77,6 @@
             </div>
         </div>
 
-        {% if job.escrow_held_amount and job.escrow_held_amount > 0 %}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h5 class="font-semibold text-gray-900">Escrow</h5>
-            </div>
-            <div class="px-5 py-4">
-                <p class="text-2xl font-bold text-purple-700">{{ job.escrow_held_amount|naira }}</p>
-                <p class="text-sm text-gray-500 mt-1">held in escrow</p>
-                {% if job.status == 'IN_PROGRESS' or job.status == 'COMPLETED' %}
-                <a href="{% url 'admin_dashboard:escrow_detail' job.pk %}" class="mt-3 inline-flex items-center gap-1 px-4 py-2 border border-purple-300 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors">
-                    <i class="bi bi-shield-check"></i>Manage Escrow
-                </a>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

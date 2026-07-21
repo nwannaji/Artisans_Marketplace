@@ -6,7 +6,6 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomerProfile, ArtisanProfile, OTPVerification
-from payments.models import Wallet
 
 User = get_user_model()
 
@@ -49,13 +48,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             is_active=True if role == User.Role.CUSTOMER else False
         )
 
-        # Automatically create associated profile and wallet
+        # Automatically create associated profile
         if role == User.Role.ARTISAN:
             ArtisanProfile.objects.create(user=user, profession=profession.strip())
         elif role == User.Role.CUSTOMER:
             CustomerProfile.objects.create(user=user)
-
-        Wallet.objects.get_or_create(user=user)
 
         return user
 
@@ -139,12 +136,8 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at', 'user', 'is_verified', 'rating', 'jobs_completed')
 
     def get_review_count(self, obj):
-        from bookings.models import Job
-        return Job.objects.filter(
-            artisan=obj,
-            status=Job.Status.COMPLETED,
-            rating__isnull=False,
-        ).count()
+        from reviews.models import Review
+        return Review.objects.filter(artisan=obj).count()
 
     def validate_skills(self, value):
         if not isinstance(value, list):

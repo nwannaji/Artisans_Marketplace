@@ -69,7 +69,6 @@ class Job extends Equatable {
   final double? latitude;
   final double? longitude;
   final JobStatus status;
-  final double escrowHeldAmount;
   final int? adminApprovedBy;
   final DateTime? adminApprovedAt;
   final double? rating;
@@ -90,7 +89,6 @@ class Job extends Equatable {
     this.latitude,
     this.longitude,
     required this.status,
-    this.escrowHeldAmount = 0.0,
     this.adminApprovedBy,
     this.adminApprovedAt,
     this.rating,
@@ -103,7 +101,7 @@ class Job extends Equatable {
   List<Object?> get props => [
     id, customerId, customerUsername, artisanId, artisanUsername,
     description, scheduledTime, agreedPrice, location, latitude, longitude,
-    status, escrowHeldAmount, adminApprovedBy, adminApprovedAt,
+    status, adminApprovedBy, adminApprovedAt,
     rating, review, createdAt,
   ];
 
@@ -120,7 +118,6 @@ class Job extends Equatable {
     double? latitude,
     double? longitude,
     JobStatus? status,
-    double? escrowHeldAmount,
     int? adminApprovedBy,
     DateTime? adminApprovedAt,
     double? rating,
@@ -140,7 +137,6 @@ class Job extends Equatable {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       status: status ?? this.status,
-      escrowHeldAmount: escrowHeldAmount ?? this.escrowHeldAmount,
       adminApprovedBy: adminApprovedBy ?? this.adminApprovedBy,
       adminApprovedAt: adminApprovedAt ?? this.adminApprovedAt,
       rating: rating ?? this.rating,
@@ -163,7 +159,6 @@ class Job extends Equatable {
       latitude: _parseDouble(json['latitude']),
       longitude: _parseDouble(json['longitude']),
       status: JobStatus.fromString(json['status'] as String?),
-      escrowHeldAmount: _parseDouble(json['escrow_held_amount']) ?? 0.0,
       adminApprovedBy: json['admin_approved_by'] as int?,
       adminApprovedAt: _parseDateTime(json['admin_approved_at']),
       rating: _parseDouble(json['rating']),

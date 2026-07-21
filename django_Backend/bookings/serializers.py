@@ -13,12 +13,12 @@ class JobSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer', 'customer_username', 'artisan', 'artisan_username',
             'description', 'scheduled_time', 'agreed_price', 'location',
-            'latitude', 'longitude', 'status', 'escrow_held_amount',
+            'latitude', 'longitude', 'status',
             'admin_approved_by', 'admin_approved_at',
             'rating', 'review', 'created_at', 'updated_at',
         ]
         read_only_fields = ('status', 'rating', 'review', 'created_at', 'updated_at',
-                            'escrow_held_amount', 'admin_approved_by', 'admin_approved_at')
+                            'admin_approved_by', 'admin_approved_at')
 
 
 class JobCreateSerializer(serializers.ModelSerializer):
@@ -35,15 +35,6 @@ class JobCreateSerializer(serializers.ModelSerializer):
         validated_data['customer'] = self.context['request'].user
         validated_data['status'] = Job.Status.PENDING
         return super().create(validated_data)
-
-
-class ArtisanReviewSerializer(serializers.ModelSerializer):
-    """Serializer for displaying individual reviews on an artisan's public profile."""
-    customer_name = serializers.CharField(source='customer.get_full_name_or_username', read_only=True)
-
-    class Meta:
-        model = Job
-        fields = ['id', 'customer_name', 'rating', 'review', 'description', 'created_at']
 
 
 class JobRatingSerializer(serializers.Serializer):

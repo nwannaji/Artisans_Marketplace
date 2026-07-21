@@ -9,14 +9,11 @@ import 'package:artisans_app/screens/home_screen.dart';
 import 'package:artisans_app/screens/admin_dashboard.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/screens/conversations_screen.dart';
-import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/screens/account_settings_screen.dart';
 import 'package:artisans_app/screens/booking_history_screen.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
-import 'package:artisans_app/screens/wallet_screen.dart';
 import 'package:artisans_app/screens/dispute_screen.dart';
 import 'package:artisans_app/screens/admin_dispute_screen.dart';
-import 'package:artisans_app/screens/admin_escrow_screen.dart';
 import 'package:artisans_app/screens/admin_customers_screen.dart';
 import 'package:artisans_app/screens/admin_chat_screen.dart';
 import 'package:artisans_app/screens/artisan_map_screen.dart';
@@ -32,7 +29,6 @@ import 'package:provider/provider.dart';
 import 'package:artisans_app/viewmodels/auth_view_model.dart';
 import 'package:artisans_app/viewmodels/profile_view_model.dart';
 import 'package:artisans_app/viewmodels/chat_view_model.dart';
-import 'package:artisans_app/viewmodels/payment_view_model.dart';
 import 'package:artisans_app/viewmodels/admin_view_model.dart';
 import 'package:artisans_app/models/user.dart';
 
@@ -55,7 +51,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider<AuthViewModel>.value(value: _authViewModel),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
         ChangeNotifierProvider(create: (_) => ChatViewModel()),
-        ChangeNotifierProvider(create: (_) => PaymentViewModel()),
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
       ],
       child: MaterialApp(
@@ -88,16 +83,6 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const BookingHistoryScreen());
             case '/manage_services':
               return MaterialPageRoute(builder: (_) => const EditArtisanProfileScreen());
-            case '/escrow':
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (_) => EscrowPaymentScreen(
-                  jobId: (args?['jobId'] as int?) ?? 0,
-                  agreedPrice: (args?['agreedPrice'] as num?)?.toDouble() ?? 0.0,
-                ),
-              );
-            case '/wallet':
-              return MaterialPageRoute(builder: (_) => const WalletScreen());
             case '/disputes':
               final args = settings.arguments as Map<String, dynamic>?;
               return MaterialPageRoute(
@@ -105,8 +90,6 @@ class MyApp extends StatelessWidget {
               );
             case '/admin_disputes':
               return MaterialPageRoute(builder: (_) => const AdminDisputeScreen());
-            case '/admin_escrow':
-              return MaterialPageRoute(builder: (_) => const AdminEscrowScreen());
             case '/admin_customers':
               return MaterialPageRoute(builder: (_) => const AdminCustomersScreen());
             case '/admin_chat':
@@ -158,12 +141,15 @@ class MyApp extends StatelessWidget {
   }
 
   /// Uses the shared AuthViewModel so Provider state is consistent from startup
+  /// Routes directly to the role-appropriate screen, skipping the persona picker.
   Future<Widget> _getInitialScreen() async {
     final isAuth = await _authViewModel.checkAuth();
     if (isAuth && _authViewModel.currentUser != null) {
       final role = _authViewModel.currentUser!.role;
-      if (role == UserRole.customer || role == UserRole.artisan) {
-        return const HomeScreen();
+      if (role == UserRole.customer) {
+        return const HomePage();
+      } else if (role == UserRole.artisan) {
+        return const ArtisanDashboardScreen();
       } else if (role == UserRole.admin) {
         return const AdminDashboard();
       }

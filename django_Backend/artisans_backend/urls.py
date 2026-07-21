@@ -30,8 +30,8 @@ urlpatterns = [
     path('api/artisans/', include('artisans_app.urls')),
     path('api/bookings/', include('bookings.urls')),
     path('api/chats/', include('chats.urls')),
-    path('api/payments/', include('payments.urls')),
     path('api/disputes/', include('disputes.urls')),
+    path('api/reviews/', include('reviews.urls')),
     path('api/notifications/', include('notifications.urls')),
     # SECURITY: Swagger UI restricted to admin users in production
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='schema-swagger-ui'),

@@ -26,7 +26,6 @@
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Artisan</span><span class="font-medium">{{ dispute.job.artisan.user.username|default:"Unassigned" }}</span></div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Reason</span><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{{ dispute.get_reason_display }}</span></div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Details</span><span class="font-medium">{{ dispute.details }}</span></div>
-                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Escrow Held</span>{% if dispute.job.escrow_held_amount %}<span class="font-bold text-purple-700">{{ dispute.job.escrow_held_amount|naira }}</span>{% else %}<span class="text-gray-400">—</span>{% endif %}</div>
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium">{{ dispute.created_at|date:"M d, Y h:i A" }}</span></div>
             </div>
         </div>
@@ -45,20 +44,6 @@
                         <textarea name="resolution" id="resolution" rows="3" required placeholder="Describe the resolution..."
                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none"></textarea>
                     </div>
-                    {% if dispute.job.escrow_held_amount and dispute.job.escrow_held_amount > 0 %}
-                    <div class="space-y-3">
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" name="full_refund" id="fullRefund" value="on" checked
-                                   class="rounded border-gray-300 text-brand focus:ring-brand">
-                            <span class="text-sm">Full refund to customer ({{ dispute.job.escrow_held_amount|naira }})</span>
-                        </label>
-                        <div>
-                            <label for="refund_amount" class="block text-sm font-medium text-gray-700 mb-1">Or enter custom refund amount:</label>
-                            <input type="number" name="refund_amount" id="refund_amount" step="0.01" min="0.01" max="{{ dispute.job.escrow_held_amount }}" placeholder="Custom amount"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
-                        </div>
-                    </div>
-                    {% endif %}
                     <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
                             onclick="return confirm('Resolve this dispute?')">
                         <i class="bi bi-check-circle mr-1"></i>Resolve Dispute
@@ -74,9 +59,6 @@
             </div>
             <div class="px-5 py-4 space-y-2">
                 <p class="text-gray-700">{{ dispute.resolution|default:"—" }}</p>
-                {% if dispute.resolution_amount %}
-                <p class="text-sm"><span class="text-gray-500">Refund Amount:</span> <strong class="text-purple-700">{{ dispute.resolution_amount|naira }}</strong></p>
-                {% endif %}
                 {% if dispute.resolved_by %}
                 <p class="text-xs text-gray-400">Resolved by {{ dispute.resolved_by.username }} on {{ dispute.resolved_at|date:"M d, Y h:i A" }}</p>
                 {% endif %}
@@ -98,21 +80,6 @@
             </div>
         </div>
 
-        {% if transactions %}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h5 class="font-semibold text-gray-900">Transactions</h5>
-            </div>
-            <div class="divide-y divide-gray-100">
-                {% for txn in transactions %}
-                <div class="px-5 py-3 flex justify-between items-center">
-                    <span class="text-sm">{{ txn.get_transaction_type_display }}</span>
-                    <span class="font-medium text-sm">{{ txn.amount|naira }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

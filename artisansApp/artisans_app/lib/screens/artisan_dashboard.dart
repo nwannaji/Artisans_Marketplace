@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
+import 'package:artisans_app/screens/dispute_screen.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
-import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
@@ -348,10 +348,6 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
         title: const Text('My Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_balance_wallet),
-            onPressed: () => Navigator.pushNamed(context, '/wallet'),
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
           ),
@@ -386,6 +382,53 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
+                        // Hero banner with artisan persona image
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [AppColors.accent, AppColors.accent.withValues(alpha: 0.85)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 36,
+                                backgroundImage: const AssetImage('assets/images/artisan_persona.png'),
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Manage Your Jobs',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Accept jobs, update availability & grow',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.9),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         // Profile summary card
                         if (_artisanProfile != null) ...[
                           _buildProfileCard(),
@@ -724,6 +767,21 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
               onPressed: () => _markJobDone(job),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.gavel, size: 16),
+              label: const Text('File Dispute'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.pink[700],
+                side: BorderSide(color: Colors.pink[700]!),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DisputeScreen(jobId: job.id)),
+                ).then((_) => _loadData());
+              },
+            ),
           ],
         );
       case JobStatus.awaitingReview:
@@ -750,23 +808,86 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.gavel, size: 16),
+              label: const Text('File Dispute'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.pink[700],
+                side: BorderSide(color: Colors.pink[700]!),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DisputeScreen(jobId: job.id)),
+                ).then((_) => _loadData());
+              },
+            ),
           ],
         );
       case JobStatus.completed:
-        if (job.escrowHeldAmount > 0) {
-          return ElevatedButton.icon(
-            icon: const Icon(Icons.payment, size: 16),
-            label: const Text('View Escrow'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-              );
-            },
-          );
-        }
-        return const Text('Completed ✓', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Completed ✓', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.gavel, size: 16),
+              label: const Text('File Dispute'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.pink[700],
+                side: BorderSide(color: Colors.pink[700]!),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DisputeScreen(jobId: job.id)),
+                ).then((_) => _loadData());
+              },
+            ),
+          ],
+        );
+      case JobStatus.disputed:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.deepOrange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, size: 16, color: Colors.deepOrange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This job has a dispute. You can view details in the Disputes section.',
+                      style: TextStyle(fontSize: 12, color: Colors.deepOrange.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.gavel, size: 16),
+              label: const Text('View Dispute'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.deepOrange,
+                side: const BorderSide(color: Colors.deepOrange),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DisputeScreen(jobId: job.id)),
+                ).then((_) => _loadData());
+              },
+            ),
+          ],
+        );
       case JobStatus.rejected:
         return const Text('Rejected', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold));
       default:

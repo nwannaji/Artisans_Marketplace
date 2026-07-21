@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
-from decimal import Decimal
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -38,19 +37,6 @@ EBULKSMS_USERNAME = os.getenv('SMS_USERNAME')
 EBULKSMS_API_KEY = os.getenv('SMS_API_KEY')
 EBULKSMS_SENDER_NAME = os.getenv('SMS_SENDER_NAME')
 
-# Payment Gateways
-PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
-PAYSTACK_PUBLIC_KEY = os.getenv('PAYSTACK_PUBLIC_KEY')
-PAYSTACK_API_URL = os.getenv('PAYSTACK_API_URL')
-
-# Pandascrow Escrow Integration
-PANDASCROW_API_URL = os.getenv('PANDASCROW_API_URL', 'https://sandbox.pandascrow.io')
-PANDASCROW_CLIENT_ID = os.getenv('PANDASCROW_CLIENT_ID', '')
-PANDASCROW_CLIENT_SECRET = os.getenv('PANDASCROW_CLIENT_SECRET', '')
-PANDASCROW_WEBHOOK_SECRET = os.getenv('PANDASCROW_WEBHOOK_SECRET', '')
-PANDASCROW_CALLBACK_URL = os.getenv('PANDASCROW_CALLBACK_URL', '')
-PANDASCROW_PARTNER_FEE = Decimal(os.getenv('PANDASCROW_PARTNER_FEE', '0.10'))  # Platform commission (10%)
-PANDASCROW_SANDBOX = os.getenv('PANDASCROW_SANDBOX', 'True').lower() == 'true'
 
 # SECURITY: DEBUG must be False in production
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
@@ -79,12 +65,12 @@ INSTALLED_APPS = [
     'accounts',
     'artisans_app',
     'bookings',
-    'payments',
     'chats',
     'disputes',
     'django_filters',
     'admin_dashboard',
     'notifications',
+    'reviews',
 ]
 
 # CORS: Configure proper origins for production
@@ -320,11 +306,6 @@ LOGGING = {
             'propagate': True,
         },
         'accounts': {
-            'handlers': _LOGGING_HANDLERS,
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'payments': {
             'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,

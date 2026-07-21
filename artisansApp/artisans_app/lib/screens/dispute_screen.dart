@@ -186,7 +186,9 @@ class _DisputeScreenState extends State<DisputeScreen> with SingleTickerProvider
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.work),
+                              isDense: true,
                             ),
+                            isExpanded: true,
                             items: _eligibleJobs.map((job) => DropdownMenuItem(
                               value: job,
                               child: Text(
@@ -278,10 +280,6 @@ class _DisputeScreenState extends State<DisputeScreen> with SingleTickerProvider
             if (dispute.resolution != null) ...[
               const Divider(height: 16),
               Text('Resolution: ${dispute.resolution!}', style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.green)),
-            ],
-            if (dispute.resolutionAmount != null) ...[
-              const SizedBox(height: 4),
-              Text('Refund: ₦${dispute.resolutionAmount!.toStringAsFixed(2)}', style: const TextStyle(color: Colors.purple)),
             ],
           ],
         ),

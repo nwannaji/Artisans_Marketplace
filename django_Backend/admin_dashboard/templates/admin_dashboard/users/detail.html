@@ -44,18 +44,6 @@
                 <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Joined</span><span class="font-medium">{{ user_obj.date_joined|date:"M d, Y h:i A" }}</span></div>
             </div>
         </div>
-
-        {% if wallet %}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h5 class="font-semibold text-gray-900">Wallet</h5>
-            </div>
-            <div class="divide-y divide-gray-100">
-                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Balance</span><span class="font-bold text-brand text-lg">{{ wallet.balance|naira }}</span></div>
-                <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium">{{ wallet.created_at|date:"M d, Y" }}</span></div>
-            </div>
-        </div>
-        {% endif %}
     </div>
 
     <div class="space-y-4">

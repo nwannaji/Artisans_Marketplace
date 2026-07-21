@@ -21,13 +21,6 @@ class Dispute(models.Model):
     details = models.TextField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True)
     resolution = models.TextField(blank=True, null=True)
-    resolution_amount = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        help_text="Amount to refund if applicable"
-    )
     resolved_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

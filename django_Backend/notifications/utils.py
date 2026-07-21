@@ -15,7 +15,7 @@ def create_notification(user, notification_type, title, message,
     Args:
         user: The User instance to notify.
         notification_type: One of Notification.NotificationType values
-                          ('job_status', 'escrow', 'dispute', 'chat', 'payment', 'system').
+                          ('job_status', 'dispute', 'chat', 'system').
         title: Short subject line for the notification.
         message: Detailed body text.
         related_object_type: Optional string identifying the object type (e.g. 'job', 'dispute').

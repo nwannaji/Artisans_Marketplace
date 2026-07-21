@@ -4,7 +4,7 @@ from django.utils.html import format_html
 
 
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'artisan', 'scheduled_time', 'status_badge', 'agreed_price', 'escrow_held_amount')
+    list_display = ('id', 'customer', 'artisan', 'scheduled_time', 'status_badge', 'agreed_price')
     list_filter = ('status', 'scheduled_time')
     search_fields = ('customer__username', 'artisan__user__username', 'description')
     readonly_fields = ('created_at', 'updated_at', 'admin_approved_at')
@@ -20,9 +20,6 @@ class JobAdmin(admin.ModelAdmin):
         }),
         ('Status & Approval', {
             'fields': ('status', 'admin_approved_by', 'admin_approved_at', 'rating', 'review')
-        }),
-        ('Escrow', {
-            'fields': ('escrow_held_amount',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

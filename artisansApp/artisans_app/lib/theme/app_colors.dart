@@ -6,7 +6,6 @@
 
 import 'package:flutter/material.dart';
 import '../models/job.dart';
-import '../models/wallet.dart';
 import '../models/dispute.dart';
 
 class AppColors {
@@ -71,61 +70,6 @@ class AppColors {
         return Colors.grey;
       default:
         return Colors.grey;
-    }
-  }
-
-  // ── Transaction type colors ─────────────────────────────────────────
-  static Color transactionColor(TransactionType type) {
-    switch (type) {
-      case TransactionType.deposit:
-        return Colors.green;
-      case TransactionType.withdrawal:
-        return Colors.red;
-      case TransactionType.transferOut:
-        return Colors.blue;
-      case TransactionType.commission:
-        return Colors.orange;
-      case TransactionType.refund:
-        return Colors.purple;
-      case TransactionType.escrowHold:
-        return Colors.indigo;
-      case TransactionType.escrowRelease:
-        return Colors.teal;
-      case TransactionType.pandascrowFund:
-        return Colors.deepPurple;
-      case TransactionType.pandascrowRelease:
-        return Colors.cyan;
-      case TransactionType.pandascrowRefund:
-        return Colors.pink;
-      case TransactionType.pandascrowFee:
-        return Colors.amber;
-    }
-  }
-
-  static IconData transactionIcon(TransactionType type) {
-    switch (type) {
-      case TransactionType.deposit:
-        return Icons.add_circle;
-      case TransactionType.withdrawal:
-        return Icons.remove_circle;
-      case TransactionType.transferOut:
-        return Icons.outbox;
-      case TransactionType.commission:
-        return Icons.percent;
-      case TransactionType.refund:
-        return Icons.undo;
-      case TransactionType.escrowHold:
-        return Icons.lock;
-      case TransactionType.escrowRelease:
-        return Icons.lock_open;
-      case TransactionType.pandascrowFund:
-        return Icons.account_balance_wallet;
-      case TransactionType.pandascrowRelease:
-        return Icons.check_circle;
-      case TransactionType.pandascrowRefund:
-        return Icons.replay;
-      case TransactionType.pandascrowFee:
-        return Icons.receipt_long;
     }
   }
 

@@ -69,46 +69,4 @@
         {% endif %}
     </div>
 </div>
-
-<!-- Wallet & Bank Accounts -->
-<div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <!-- Wallet -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="px-5 py-4 border-b border-gray-100">
-            <h5 class="font-semibold text-gray-900">Wallet</h5>
-        </div>
-        <div class="divide-y divide-gray-100">
-            <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Balance</span><span class="font-semibold text-lg text-brand">{{ wallet.balance|naira }}</span></div>
-            <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Created</span><span class="font-medium text-sm">{{ wallet.created_at|date:"M d, Y" }}</span></div>
-        </div>
-    </div>
-
-    <!-- Bank Accounts -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="px-5 py-4 border-b border-gray-100">
-            <h5 class="font-semibold text-gray-900">Bank Accounts <span class="text-gray-400 font-normal text-sm">({{ bank_accounts|length }})</span></h5>
-        </div>
-        {% if bank_accounts %}
-        <div class="divide-y divide-gray-100">
-            {% for ba in bank_accounts %}
-            <div class="px-5 py-3">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <span class="font-medium">{{ ba.account_name }}</span>
-                        {% if ba.is_default %}<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand/10 text-brand">Default</span>{% endif %}
-                    </div>
-                    <div class="flex items-center gap-2">
-                        {% if ba.is_verified %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Verified</span>{% else %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Unverified</span>{% endif %}
-                    </div>
-                </div>
-                <div class="text-sm text-gray-500 mt-1">Bank code: {{ ba.bank_code }} · Account: ****{{ ba.account_number|slice:"-4:" }}</div>
-                {% if ba.paystack_recipient_code %}<div class="text-xs text-gray-400 mt-0.5">Recipient: {{ ba.paystack_recipient_code|truncatechars:20 }}</div>{% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="px-5 py-10 text-center text-gray-400 text-sm">No bank accounts registered</div>
-        {% endif %}
-    </div>
-</div>
 {% endblock %}

@@ -1,7 +1,6 @@
 // lib/screens/booking_history_screen.dart
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/dispute_screen.dart';
-import 'package:artisans_app/screens/escrow_payment_screen.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/theme/app_colors.dart';
@@ -57,52 +56,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     if (confirmed != true) return;
 
     try {
-      final response = await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
+      await BookingApiService().updateJobStatus(job.id, 'COMPLETED');
       if (!mounted) return;
-
-      final escrowReleased = response['escrow_released'] == true;
-      final otpRequired = response['escrow_release_otp_required'] == true;
-
-      if (otpRequired) {
-        // Escrow requires OTP — navigate to EscrowPaymentScreen for OTP entry
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Job marked as completed! Payment requires OTP confirmation.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ),
-        );
-        final escrowResult = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EscrowPaymentScreen(
-              jobId: job.id,
-              agreedPrice: job.agreedPrice,
-              job: job,
-            ),
-          ),
-        );
-        if (!mounted) return;
-        if (escrowResult == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Payment released to artisan!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-        _loadJobs();
-        return;
-      }
 
       // Prompt for rating after completing the job
       final rated = await _showRatingDialog(job);
 
       if (!mounted) return;
-      String message = rated ? 'Job completed and rated!' : 'Job marked as completed!';
-      if (escrowReleased) {
-        message = rated ? 'Job completed, rated, and payment released!' : 'Job completed! Payment released to artisan.';
-      }
+      final message = rated ? 'Job completed and rated!' : 'Job marked as completed!';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
@@ -404,16 +365,6 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                 ],
               ],
             ),
-            if (job.escrowHeldAmount > 0) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet, size: 16, color: AppColors.primary),
-                  Text(' Escrow: ₦${job.escrowHeldAmount.toStringAsFixed(0)}',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ],
             if (job.artisanUsername != null) ...[
               const SizedBox(height: 4),
               Text('Artisan: ${job.artisanUsername}',
@@ -487,65 +438,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
               ),
             ],
 
-            // Fund escrow — available when job is active and has no escrow yet
-            if ((job.status == JobStatus.pending ||
-                    job.status == JobStatus.adminApproved ||
-                    job.status == JobStatus.accepted ||
-                    job.status == JobStatus.inProgress) &&
-                job.escrowHeldAmount == 0) ...[
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.payment, size: 16),
-                label: const Text('Fund Escrow'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                  ).then((_) => _loadJobs());
-                },
-              ),
-            ],
-            // Awaiting review — customer can approve (release escrow) or dispute
+            // Awaiting review — customer can approve or dispute
             if (job.status == JobStatus.awaitingReview) ...[
               const SizedBox(height: 8),
-              InfoCallout.info(message: 'The artisan has marked this job as done. Review and approve to release payment.'),
-              if (job.escrowHeldAmount > 0) ...[
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle, size: 16),
-                  label: const Text('Approve & Pay'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                    ).then((_) => _loadJobs());
-                  },
-                ),
-              ] else ...[
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle, size: 16),
-                  label: const Text('Approve Completion'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  onPressed: () => _completeJob(job),
-                ),
-              ],
-            ],
-            // Release payment — available when job is completed and escrow is still held (admin edge case)
-            if (job.status == JobStatus.completed && job.escrowHeldAmount > 0) ...[
+              InfoCallout.info(message: 'The artisan has marked this job as done. Review and approve to complete.'),
               const SizedBox(height: 8),
               ElevatedButton.icon(
-                icon: const Icon(Icons.payment, size: 16),
-                label: const Text('Release Payment'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => EscrowPaymentScreen(jobId: job.id, agreedPrice: job.agreedPrice)),
-                  ).then((_) => _loadJobs());
-                },
+                icon: const Icon(Icons.check_circle, size: 16),
+                label: const Text('Approve Completion'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                onPressed: () => _completeJob(job),
               ),
             ],
           ],

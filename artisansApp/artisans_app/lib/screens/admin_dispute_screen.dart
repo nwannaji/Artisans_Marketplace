@@ -54,67 +54,43 @@ class _AdminDisputeScreenState extends State<AdminDisputeScreen> {
 
   Future<void> _resolveDispute(Dispute dispute) async {
     final resolutionController = TextEditingController();
-    final amountController = TextEditingController();
-    bool fullRefund = false;
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Resolve Dispute'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Job #${dispute.jobId}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text('Reason: ${_reasonLabel(dispute.reason)}'),
-                Text('Details: ${dispute.details}'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: resolutionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Resolution *',
-                    hintText: 'Describe the resolution...',
-                    border: OutlineInputBorder(),
-                  ),
+      builder: (context) => AlertDialog(
+        title: const Text('Resolve Dispute'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Job #${dispute.jobId}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text('Reason: ${_reasonLabel(dispute.reason)}'),
+              Text('Details: ${dispute.details}'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: resolutionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Resolution *',
+                  hintText: 'Describe the resolution...',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 12),
-                if (dispute.resolutionAmount != null || true) ...[
-                  CheckboxListTile(
-                    value: fullRefund,
-                    onChanged: (v) => setDialogState(() => fullRefund = v ?? false),
-                    title: const Text('Full refund to customer'),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
-                  if (!fullRefund) ...[
-                    TextField(
-                      controller: amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Refund amount (₦)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Resolve', style: TextStyle(color: Colors.white)),
-            ),
-          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Resolve', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
 
@@ -129,21 +105,9 @@ class _AdminDisputeScreenState extends State<AdminDisputeScreen> {
     }
 
     try {
-      double? refundAmount;
-      if (fullRefund) {
-        // Pass null to indicate full refund — the backend defaults to full escrow amount
-        refundAmount = null;
-      } else {
-        final amount = double.tryParse(amountController.text);
-        if (amount != null && amount > 0) {
-          refundAmount = amount;
-        }
-      }
-
       await _disputeService.resolveDispute(
         dispute.id,
         resolution: resolution,
-        resolutionAmount: refundAmount,
       );
 
       if (mounted) {
@@ -286,10 +250,6 @@ class _AdminDisputeScreenState extends State<AdminDisputeScreen> {
                   ),
                 ],
               ),
-              if (dispute.resolutionAmount != null) ...[
-                const SizedBox(height: 4),
-                Text('Refund: ₦${dispute.resolutionAmount!.toStringAsFixed(2)}', style: const TextStyle(color: Colors.purple)),
-              ],
             ],
             if (canResolve) ...[
               const SizedBox(height: 8),

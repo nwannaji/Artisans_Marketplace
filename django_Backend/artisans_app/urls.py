@@ -5,7 +5,7 @@ from .views import (
     ArtisanNearbySearchAPIView, ProfessionListAPIView,
     PortfolioImageListCreateAPIView, PortfolioImageDetailAPIView
 )
-from bookings.views import ArtisanReviewListView
+from reviews.views import ArtisanReviewListCreateView, MyArtisanReviewView
 
 app_name = 'artisans_app'
 
@@ -14,7 +14,8 @@ urlpatterns = [
     path('nearby/', ArtisanNearbySearchAPIView.as_view(), name='nearby-search'),
     path('professions/', ProfessionListAPIView.as_view(), name='professions'),
     path('create/', ArtisanProfileCreateAPIView.as_view(), name='create'),
-    path('<int:pk>/reviews/', ArtisanReviewListView.as_view(), name='reviews'),
+    path('<int:artisan_pk>/reviews/', ArtisanReviewListCreateView.as_view(), name='reviews'),
+    path('<int:artisan_pk>/reviews/mine/', MyArtisanReviewView.as_view(), name='my-review'),
     path('<int:pk>/', ArtisanDetailAPIView.as_view(), name='detail'),
     path('<int:pk>/verify/', ArtisanProfileUpdateAPIView.as_view(), name='verify'),
     path('portfolio/', PortfolioImageListCreateAPIView.as_view(), name='portfolio-list-create'),

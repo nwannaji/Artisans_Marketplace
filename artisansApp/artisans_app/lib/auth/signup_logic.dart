@@ -52,8 +52,13 @@ class _SignupPageState extends State<SignupPage> {
       if (!context.mounted) return;
 
       if (response != null && response.containsKey('tokens')) {
-        // Customer accounts are auto-activated — go to home
-        Navigator.pushReplacementNamed(context, '/home');
+        // Customer accounts are auto-activated — go to role-based home screen
+        final role = selectedRole;
+        if (role == 'ARTISAN') {
+          Navigator.pushReplacementNamed(context, '/artisan_dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/user_home');
+        }
       } else if (response != null) {
         // Artisan/Admin accounts need admin approval
         ScaffoldMessenger.of(context).showSnackBar(
