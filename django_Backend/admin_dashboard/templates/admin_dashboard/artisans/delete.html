@@ -56,6 +56,9 @@
         {% if related_counts.wallet %}
         <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Wallet</span><span class="font-medium">{{ related_counts.wallet }}</span></div>
         {% endif %}
+        {% if related_counts.bank_account %}
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Bank Account</span><span class="font-medium">{{ related_counts.bank_account }}</span></div>
+        {% endif %}
     </div>
 </div>
 

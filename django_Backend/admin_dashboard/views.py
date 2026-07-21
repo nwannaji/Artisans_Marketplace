@@ -21,14 +21,19 @@ logger = logging.getLogger(__name__)
 
 def _cleanup_orphaned_tables(user):
     """Remove records from tables that reference the user but belong to
-    apps no longer in INSTALLED_APPS (e.g. payments_wallet).
+    apps no longer in INSTALLED_APPS (e.g. payments_wallet, payments_bankaccount).
 
     These tables have foreign keys to accounts_user but Django's CASCADE
     only works for models it knows about.  Orphaned tables must be handled
     with raw SQL.
     """
     with connection.cursor() as cursor:
-        # payments_wallet: OneToOne to user — safe to delete before user
+        # payments_bankaccount: FK to user — delete before user
+        cursor.execute(
+            "DELETE FROM payments_bankaccount WHERE user_id = %s",
+            [user.pk],
+        )
+        # payments_wallet: OneToOne to user — delete before user
         cursor.execute(
             "DELETE FROM payments_wallet WHERE user_id = %s",
             [user.pk],
@@ -598,8 +603,12 @@ def user_delete(request, pk):
     with connection.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
         wallet_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM payments_bankaccount WHERE user_id = %s", [user.pk])
+        bank_count = cursor.fetchone()[0]
     if wallet_count:
         related_counts['wallet'] = wallet_count
+    if bank_count:
+        related_counts['bank_account'] = bank_count
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -686,8 +695,12 @@ def artisan_delete(request, pk):
     with connection.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
         wallet_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM payments_bankaccount WHERE user_id = %s", [user.pk])
+        bank_count = cursor.fetchone()[0]
     if wallet_count:
         related_counts['wallet'] = wallet_count
+    if bank_count:
+        related_counts['bank_account'] = bank_count
 
     if request.method == 'POST':
         action = request.POST.get('action')
