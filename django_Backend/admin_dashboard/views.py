@@ -3,7 +3,7 @@ import logging
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.db.models import Count, Q
-from django.db import transaction as db_transaction
+from django.db import transaction as db_transaction, connection
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -17,6 +17,22 @@ from disputes.models import Dispute
 from reviews.models import Review
 
 logger = logging.getLogger(__name__)
+
+
+def _cleanup_orphaned_tables(user):
+    """Remove records from tables that reference the user but belong to
+    apps no longer in INSTALLED_APPS (e.g. payments_wallet).
+
+    These tables have foreign keys to accounts_user but Django's CASCADE
+    only works for models it knows about.  Orphaned tables must be handled
+    with raw SQL.
+    """
+    with connection.cursor() as cursor:
+        # payments_wallet: OneToOne to user — safe to delete before user
+        cursor.execute(
+            "DELETE FROM payments_wallet WHERE user_id = %s",
+            [user.pk],
+        )
 
 
 # ========================
@@ -578,6 +594,12 @@ def user_delete(request, pk):
             Review.objects.filter(artisan__user=user).count() if user.role == User.Role.ARTISAN else 0
         ),
     }
+    # Include orphaned table counts (apps removed from codebase but tables still in DB)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
+        wallet_count = cursor.fetchone()[0]
+    if wallet_count:
+        related_counts['wallet'] = wallet_count
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -593,7 +615,9 @@ def user_delete(request, pk):
             confirm_form = UserDeleteConfirmForm(request.POST)
             if confirm_form.is_valid() and confirm_form.cleaned_data['confirm_username'] == user.username:
                 username = user.username
-                user.delete()
+                with db_transaction.atomic():
+                    _cleanup_orphaned_tables(user)
+                    user.delete()
                 messages.success(request, f'User {username} has been permanently deleted.')
                 logger.info("User %s (pk=%s) permanently deleted by admin %s", username, pk, request.user.username)
                 return redirect('admin_dashboard:user_list')
@@ -658,6 +682,12 @@ def artisan_delete(request, pk):
         'conversations': Conversation.objects.filter(artisan=user).count(),
         'reviews': Review.objects.filter(artisan=profile).count(),
     }
+    # Include orphaned table counts (apps removed from codebase but tables still in DB)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT COUNT(*) FROM payments_wallet WHERE user_id = %s", [user.pk])
+        wallet_count = cursor.fetchone()[0]
+    if wallet_count:
+        related_counts['wallet'] = wallet_count
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -673,7 +703,9 @@ def artisan_delete(request, pk):
             confirm_form = UserDeleteConfirmForm(request.POST)
             if confirm_form.is_valid() and confirm_form.cleaned_data['confirm_username'] == user.username:
                 username = user.username
-                user.delete()
+                with db_transaction.atomic():
+                    _cleanup_orphaned_tables(user)
+                    user.delete()
                 messages.success(request, f'Artisan {username} has been permanently deleted.')
                 logger.info("Artisan user %s permanently deleted by admin %s", username, request.user.username)
                 return redirect('admin_dashboard:artisan_list')

@@ -55,6 +55,9 @@
         <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Jobs as Artisan</span><span class="font-medium">{{ related_counts.jobs_as_artisan }}</span></div>
         <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Conversations</span><span class="font-medium">{{ related_counts.conversations }}</span></div>
         <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Reviews</span><span class="font-medium">{{ related_counts.reviews }}</span></div>
+        {% if related_counts.wallet %}
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Wallet</span><span class="font-medium">{{ related_counts.wallet }}</span></div>
+        {% endif %}
     </div>
 </div>
 
