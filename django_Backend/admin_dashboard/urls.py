@@ -12,11 +12,15 @@ urlpatterns = [
     # Users
     path('users/', views.user_list, name='user_list'),
     path('users/<int:pk>/', views.user_detail, name='user_detail'),
+    path('users/<int:pk>/edit/', views.user_edit, name='user_edit'),
+    path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
     path('users/<int:pk>/toggle-active/', views.user_toggle_active, name='user_toggle_active'),
 
     # Artisans
     path('artisans/', views.artisan_list, name='artisan_list'),
     path('artisans/<int:pk>/', views.artisan_detail, name='artisan_detail'),
+    path('artisans/<int:pk>/edit/', views.artisan_edit, name='artisan_edit'),
+    path('artisans/<int:pk>/delete/', views.artisan_delete, name='artisan_delete'),
     path('artisans/<int:pk>/toggle-verified/', views.artisan_toggle_verified, name='artisan_toggle_verified'),
 
     # Jobs

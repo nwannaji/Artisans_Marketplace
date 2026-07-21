@@ -64,6 +64,9 @@
                         <a href="{% url 'admin_dashboard:user_detail' user.pk %}" class="text-brand hover:underline text-sm">
                             <i class="bi bi-eye mr-1"></i>View
                         </a>
+                        <a href="{% url 'admin_dashboard:user_edit' user.pk %}" class="text-gray-500 hover:text-brand text-sm ml-2">
+                            <i class="bi bi-pencil mr-1"></i>Edit
+                        </a>
                     </td>
                 </tr>
                 {% empty %}

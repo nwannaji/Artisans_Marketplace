@@ -9,11 +9,12 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .decorators import admin_required
-from .forms import LoginForm, DisputeResolveForm, ChatMessageForm
+from .forms import LoginForm, DisputeResolveForm, ChatMessageForm, UserEditForm, CustomerProfileEditForm, ArtisanProfileEditForm, UserDeleteConfirmForm
 from accounts.models import User, ArtisanProfile, CustomerProfile
 from bookings.models import Job
 from chats.models import Conversation, Chat
 from disputes.models import Dispute
+from reviews.models import Review
 
 logger = logging.getLogger(__name__)
 
@@ -499,5 +500,193 @@ def admin_send_message(request, conversation_id):
         return render(request, 'admin_dashboard/chats/_message.html', {'msg': latest})
 
     return redirect('admin_dashboard:conversation_detail', pk=conversation_id)
+
+
+# ========================
+# User Edit & Delete Views
+# ========================
+
+@admin_required
+def user_edit(request, pk):
+    """Edit user account and related profile fields."""
+    user = get_object_or_404(User, pk=pk)
+    profile = None
+    profile_type = None
+
+    if user.role == User.Role.ARTISAN:
+        try:
+            profile = user.artisanprofile
+            profile_type = 'artisan'
+        except ArtisanProfile.DoesNotExist:
+            pass
+    elif user.role == User.Role.CUSTOMER:
+        try:
+            profile = user.customerprofile
+            profile_type = 'customer'
+        except CustomerProfile.DoesNotExist:
+            pass
+
+    if request.method == 'POST':
+        user_form = UserEditForm(request.POST, instance=user)
+        profile_form = None
+
+        if profile_type == 'customer' and profile:
+            profile_form = CustomerProfileEditForm(request.POST, request.FILES, instance=profile)
+        elif profile_type == 'artisan' and profile:
+            profile_form = ArtisanProfileEditForm(request.POST, request.FILES, instance=profile)
+
+        if user_form.is_valid() and (profile_form is None or profile_form.is_valid()):
+            with db_transaction.atomic():
+                user_form.save()
+                if profile_form:
+                    profile_form.save()
+            messages.success(request, f'{user.username} has been updated.')
+            return redirect('admin_dashboard:user_detail', pk=pk)
+    else:
+        user_form = UserEditForm(instance=user)
+        profile_form = None
+        if profile_type == 'customer' and profile:
+            profile_form = CustomerProfileEditForm(instance=profile)
+        elif profile_type == 'artisan' and profile:
+            profile_form = ArtisanProfileEditForm(instance=profile)
+
+    context = {
+        'user_obj': user,
+        'user_form': user_form,
+        'profile_form': profile_form,
+        'profile_type': profile_type,
+    }
+    return render(request, 'admin_dashboard/users/edit.html', context)
+
+
+@admin_required
+def user_delete(request, pk):
+    """Delete confirmation page for a user (deactivate or permanent delete)."""
+    user = get_object_or_404(User, pk=pk)
+
+    # Prevent admin from deleting themselves
+    if user.pk == request.user.pk:
+        messages.error(request, 'You cannot delete your own account.')
+        return redirect('admin_dashboard:user_detail', pk=pk)
+
+    # Gather related data counts for display
+    related_counts = {
+        'jobs_as_customer': Job.objects.filter(customer=user).count(),
+        'jobs_as_artisan': Job.objects.filter(artisan__user=user).count() if user.role == User.Role.ARTISAN else 0,
+        'conversations': Conversation.objects.filter(Q(client=user) | Q(artisan=user)).count(),
+        'reviews': Review.objects.filter(customer=user).count() if user.role == User.Role.CUSTOMER else (
+            Review.objects.filter(artisan__user=user).count() if user.role == User.Role.ARTISAN else 0
+        ),
+    }
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'deactivate':
+            user.is_active = False
+            user.save(update_fields=['is_active'])
+            messages.success(request, f'{user.username} has been deactivated.')
+            logger.info("User %s (pk=%s) deactivated by admin %s", user.username, user.pk, request.user.username)
+            return redirect('admin_dashboard:user_list')
+
+        elif action == 'hard_delete':
+            confirm_form = UserDeleteConfirmForm(request.POST)
+            if confirm_form.is_valid() and confirm_form.cleaned_data['confirm_username'] == user.username:
+                username = user.username
+                user.delete()
+                messages.success(request, f'User {username} has been permanently deleted.')
+                logger.info("User %s (pk=%s) permanently deleted by admin %s", username, pk, request.user.username)
+                return redirect('admin_dashboard:user_list')
+            else:
+                messages.error(request, 'Username confirmation does not match. User was not deleted.')
+                return redirect('admin_dashboard:user_delete', pk=pk)
+
+    context = {
+        'user_obj': user,
+        'related_counts': related_counts,
+        'confirm_form': UserDeleteConfirmForm(),
+    }
+    return render(request, 'admin_dashboard/users/delete.html', context)
+
+
+# ========================
+# Artisan Edit & Delete Views
+# ========================
+
+@admin_required
+def artisan_edit(request, pk):
+    """Edit artisan profile and user account fields."""
+    profile = get_object_or_404(ArtisanProfile, pk=pk)
+    user = profile.user
+
+    if request.method == 'POST':
+        user_form = UserEditForm(request.POST, instance=user)
+        profile_form = ArtisanProfileEditForm(request.POST, request.FILES, instance=profile)
+
+        if user_form.is_valid() and profile_form.is_valid():
+            with db_transaction.atomic():
+                user_form.save()
+                profile_form.save()
+            messages.success(request, f'{user.username} has been updated.')
+            return redirect('admin_dashboard:artisan_detail', pk=pk)
+    else:
+        user_form = UserEditForm(instance=user)
+        profile_form = ArtisanProfileEditForm(instance=profile)
+
+    context = {
+        'profile': profile,
+        'user_form': user_form,
+        'profile_form': profile_form,
+    }
+    return render(request, 'admin_dashboard/artisans/edit.html', context)
+
+
+@admin_required
+def artisan_delete(request, pk):
+    """Delete confirmation page for an artisan (deactivate or permanent delete)."""
+    profile = get_object_or_404(ArtisanProfile, pk=pk)
+    user = profile.user
+
+    # Prevent admin from deleting themselves
+    if user.pk == request.user.pk:
+        messages.error(request, 'You cannot delete your own account.')
+        return redirect('admin_dashboard:artisan_detail', pk=pk)
+
+    # Gather related data counts for display
+    related_counts = {
+        'jobs_as_artisan': Job.objects.filter(artisan=profile).count(),
+        'conversations': Conversation.objects.filter(artisan=user).count(),
+        'reviews': Review.objects.filter(artisan=profile).count(),
+    }
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'deactivate':
+            user.is_active = False
+            user.save(update_fields=['is_active'])
+            messages.success(request, f'{user.username} has been deactivated.')
+            logger.info("Artisan user %s (pk=%s) deactivated by admin %s", user.username, user.pk, request.user.username)
+            return redirect('admin_dashboard:artisan_list')
+
+        elif action == 'hard_delete':
+            confirm_form = UserDeleteConfirmForm(request.POST)
+            if confirm_form.is_valid() and confirm_form.cleaned_data['confirm_username'] == user.username:
+                username = user.username
+                user.delete()
+                messages.success(request, f'Artisan {username} has been permanently deleted.')
+                logger.info("Artisan user %s permanently deleted by admin %s", username, request.user.username)
+                return redirect('admin_dashboard:artisan_list')
+            else:
+                messages.error(request, 'Username confirmation does not match. Artisan was not deleted.')
+                return redirect('admin_dashboard:artisan_delete', pk=pk)
+
+    context = {
+        'profile': profile,
+        'user_obj': user,
+        'related_counts': related_counts,
+        'confirm_form': UserDeleteConfirmForm(),
+    }
+    return render(request, 'admin_dashboard/artisans/delete.html', context)
 
 
