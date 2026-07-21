@@ -95,6 +95,23 @@ else:
     ]
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF: Trusted origins that may submit forms to this site.
+# Required for the admin dashboard login and any browser-based form POSTs.
+# In production, set the CSRF_TRUSTED_ORIGINS env var to your backend URL
+# (e.g. https://fixit-api-lsyh.onrender.com).
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'http://10.0.2.2:8000',
+    ]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+        if origin.strip()
+    ]
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
