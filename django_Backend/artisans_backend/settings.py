@@ -268,28 +268,35 @@ LOGIN_URL = '/dashboard/login/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── Email Configuration ──────────────────────────────────────
-# Supports any SMTP provider (Gmail, SendGrid, Mailgun, Amazon SES, etc.)
-# Set EMAIL_BACKEND to 'django.core.mail.backends.smtp.EmailBackend' for
-# production, or leave it as the console backend for local testing.
+# Render's free tier blocks outbound SMTP (ports 25, 465, 587).
+# We use Anymail with SendGrid's HTTP API to bypass that restriction.
+# For local dev, falls back to the console backend (emails printed to terminal).
 #
-# For Gmail:  EMAIL_HOST=smtp.gmail.com, EMAIL_PORT=587, EMAIL_USE_TLS=True
-#             EMAIL_HOST_USER=you@gmail.com, EMAIL_HOST_PASSWORD=<app-password>
-# For SendGrid: EMAIL_HOST=smtp.sendgrid.net, EMAIL_PORT=587, EMAIL_USE_TLS=True
-#               EMAIL_HOST_USER=apikey, EMAIL_HOST_PASSWORD=<sendgrid-api-key>
+# Required env vars for production:
+#   ANYMAIL_SENDGRID_API_KEY  — from https://sendgrid.com (free tier: 100 emails/day)
+#   DEFAULT_FROM_EMAIL         — sender address (must match a verified sender in SendGrid)
+#
+# SendGrid also supports SMTP, but Render blocks it — hence the HTTP API approach.
+
+INSTALLED_APPS += ['anymail']
 
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend' if not DEBUG else 'django.core.mail.backends.console.EmailBackend',
+    'anymail.backends.sendgrid.EmailBackend' if not DEBUG else 'django.core.mail.backends.console.EmailBackend',
 )
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
+
+ANYMAIL = {
+    'SENDGRID_API_KEY': os.getenv('ANYMAIL_SENDGRID_API_KEY', ''),
+}
+
+# Fallback SMTP settings (used only when EMAIL_BACKEND is explicitly set to SMTP)
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
-
-# Timeout for SMTP connections (seconds) — prevents hung workers
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))
 
 # ── Channel Layers (WebSocket / real-time) ──────────────────

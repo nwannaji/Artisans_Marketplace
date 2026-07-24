@@ -25,25 +25,17 @@ services:
         value: "fixit-api-lsyh.onrender.com,fixit-api.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://fixit.onrender.com"
-      # ── Email / SMTP (for password reset OTPs) ──
-      - key: EMAIL_BACKEND
-        value: "django.core.mail.backends.smtp.EmailBackend"
-      - key: EMAIL_HOST
-        value: "smtp.gmail.com"
-      - key: EMAIL_PORT
-        value: "587"
-      - key: EMAIL_USE_TLS
-        value: "True"
-      - key: EMAIL_USE_SSL
-        value: "False"
-      - key: EMAIL_TIMEOUT
-        value: "30"
+      # ── Email via SendGrid HTTP API ──
+      # Render free tier blocks outbound SMTP, so we use SendGrid's API instead.
+      # EMAIL_BACKEND defaults to anymail.backends.sendgrid.EmailBackend in settings.py.
+      - key: DEFAULT_FROM_EMAIL
+        value: "kaycollinservices@gmail.com"
       # ── Secrets (set manually in Render Dashboard → Env) ──
-      # SECRET_KEY            → generate: python -c "import secrets; print(secrets.token_urlsafe(50))"
-      # DATABASE_URL          → from Neon: postgresql://neondb_owner:password@ep-xxx.neon.tech/neondb?sslmode=require
-      # EMAIL_HOST_USER       → your Gmail address (e.g. kaycollinservices@gmail.com)
-      # EMAIL_HOST_PASSWORD   → your Gmail app password (https://myaccount.google.com/apppasswords)
-      # DEFAULT_FROM_EMAIL    → sender address for outgoing emails (e.g. kaycollinservices@gmail.com)
+      # SECRET_KEY                → generate: python -c "import secrets; print(secrets.token_urlsafe(50))"
+      # DATABASE_URL              → from Neon: postgresql://neondb_owner:password@ep-xxx.neon.tech/neondb?sslmode=require
+      # ANYMAIL_SENDGRID_API_KEY  → from https://app.sendgrid.com (free tier: 100 emails/day)
+      #   Create API key: Settings → API Keys → Create API Key (Restricted: Mail Send)
+      #   Verify sender: Settings → Sender Authentication → Verify a Single Sender (kaycollinservices@gmail.com)
       # PAYSTACK_SECRET_KEY, PAYSTACK_PUBLIC_KEY
       # PANDASCROW_CLIENT_ID, PANDASCROW_CLIENT_SECRET, PANDASCROW_WEBHOOK_SECRET
       # SMS_USERNAME, SMS_API_KEY, SMS_SENDER_NAME
