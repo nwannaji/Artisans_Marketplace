@@ -1,8 +1,10 @@
 // lib/screens/conversations_screen.dart
+import 'dart:async';
 import 'package:artisans_app/models/conversation.dart';
 import 'package:artisans_app/screens/chat_screen.dart';
 import 'package:artisans_app/services/chat_api_service.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
+import 'package:artisans_app/services/websocket_service.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/theme/app_spacing.dart';
 import 'package:artisans_app/widgets/empty_state.dart';
@@ -23,11 +25,26 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   String _userRole = '';
 
   final ChatApiService _chatService = ChatApiService();
+  final WebSocketService _wsService = WebSocketService();
+
+  // WebSocket subscriptions for real-time updates
+  StreamSubscription? _messageSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+
+    // Refresh conversations when a new message arrives via WebSocket
+    _messageSubscription = _wsService.messages.listen((_) {
+      if (mounted) _loadConversations();
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -66,6 +83,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           otherUserId: otherUserId,
           otherUserName: otherUserName,
           conversationId: conversation.id,
+          messageTtlDays: conversation.messageTtlDays,
         ),
       ),
     );
@@ -145,17 +163,37 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
-              // Avatar
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                child: Text(
-                  (conversation.artisanUsername ?? '?')[0].toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+              // Avatar with online indicator
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                    child: Text(
+                      (conversation.artisanUsername ?? '?')[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
                   ),
-                ),
+                  if (conversation.otherUserOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                          border: Border.fromBorderSide(
+                            const BorderSide(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: AppSpacing.md),
               // Name + message preview
@@ -205,10 +243,30 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              // Timestamp
-              Text(
-                timeString,
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              // Timestamp + TTL badge
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    timeString,
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  if (conversation.messageTtlDays > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          conversation.ttlLabel,
+                          style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),

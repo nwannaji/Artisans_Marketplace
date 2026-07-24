@@ -28,6 +28,17 @@ class Conversation(models.Model):
         max_length=20, choices=CONVERSATION_TYPES, default='client_artisan'
     )
     is_active = models.BooleanField(default=True)
+    MESSAGE_TTL_CHOICES = [
+        (0, 'Never expire'),
+        (7, '1 week'),
+        (14, '2 weeks'),
+        (30, '1 month'),
+    ]
+    message_ttl_days = models.PositiveSmallIntegerField(
+        default=14,
+        choices=MESSAGE_TTL_CHOICES,
+        help_text='Days to retain messages. 0 = never auto-delete.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

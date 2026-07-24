@@ -1,6 +1,7 @@
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -101,18 +102,12 @@ class _ArtisanMapScreenState extends State<ArtisanMapScreen> {
           ),
           child: Row(
             children: [
-              CircleAvatar(
+              ProfileAvatar(
+                imageUrl: artisan.profilePicture,
+                name: artisan.fullName,
                 radius: 24,
-                backgroundImage: artisan.profilePicture != null
-                    ? NetworkImage(artisan.profilePicture!)
-                    : null,
                 backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                child: artisan.profilePicture == null
-                    ? Text(
-                        artisan.fullName.substring(0, 1).toUpperCase(),
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
-                      )
-                    : null,
+                foregroundColor: Theme.of(context).primaryColor,
               ),
               const SizedBox(width: 12),
               Expanded(

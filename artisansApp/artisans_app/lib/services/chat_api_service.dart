@@ -104,4 +104,28 @@ class ChatApiService {
     );
     return ChatMessage.fromJson(result);
   }
+
+  /// Update conversation settings (e.g., message TTL)
+  Future<Conversation> updateConversationTtl(int conversationId, {required int ttlDays}) async {
+    final result = await _apiClient.patch(
+      '/api/chats/conversations/$conversationId/',
+      body: {'message_ttl_days': ttlDays},
+    );
+    return Conversation.fromJson(result);
+  }
+
+  /// Delete a message (only the sender can delete their own messages)
+  Future<void> deleteMessage(int conversationId, int messageId) async {
+    await _apiClient.delete('/api/chats/conversations/$conversationId/messages/$messageId/');
+  }
+
+  /// Check if a user is currently online (last active within 3 minutes)
+  Future<bool> checkOnlineStatus(int userId) async {
+    try {
+      final result = await _apiClient.get('/api/accounts/users/$userId/online/');
+      return result['is_online'] as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

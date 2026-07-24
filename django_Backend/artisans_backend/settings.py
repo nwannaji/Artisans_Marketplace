@@ -51,6 +51,8 @@ else:
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # Must be before django.contrib.admin for ASGI
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -71,6 +73,7 @@ INSTALLED_APPS = [
     'admin_dashboard',
     'notifications',
     'reviews',
+    'subscriptions',
 ]
 
 # CORS: Configure proper origins for production
@@ -150,11 +153,15 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'accounts.middleware.UpdateLastActiveMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
 ROOT_URLCONF = 'artisans_backend.urls'
+
+# ASGI application for WebSocket support (Django Channels)
+ASGI_APPLICATION = 'artisans_backend.asgi.application'
 
 TEMPLATES = [
     {
@@ -260,6 +267,50 @@ LOGIN_URL = '/dashboard/login/'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ── Email Configuration ──────────────────────────────────────
+# Supports any SMTP provider (Gmail, SendGrid, Mailgun, Amazon SES, etc.)
+# Set EMAIL_BACKEND to 'django.core.mail.backends.smtp.EmailBackend' for
+# production, or leave it as the console backend for local testing.
+#
+# For Gmail:  EMAIL_HOST=smtp.gmail.com, EMAIL_PORT=587, EMAIL_USE_TLS=True
+#             EMAIL_HOST_USER=you@gmail.com, EMAIL_HOST_PASSWORD=<app-password>
+# For SendGrid: EMAIL_HOST=smtp.sendgrid.net, EMAIL_PORT=587, EMAIL_USE_TLS=True
+#               EMAIL_HOST_USER=apikey, EMAIL_HOST_PASSWORD=<sendgrid-api-key>
+
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend' if not DEBUG else 'django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'webmaster@localhost')
+
+# Timeout for SMTP connections (seconds) — prevents hung workers
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))
+
+# ── Channel Layers (WebSocket / real-time) ──────────────────
+# InMemory is fine for single-process (local dev, Render free tier).
+# For multi-process production, set CHANNEL_LAYERS_BACKEND=redis and REDIS_URL.
+if os.getenv('CHANNEL_LAYERS_BACKEND') == 'redis':
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [os.getenv('REDIS_URL', 'redis://localhost:6379')],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
 # SECURITY: Production security settings
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -332,12 +383,22 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'channels': {
+            'handlers': _LOGGING_HANDLERS,
+            'level': 'INFO',
+            'propagate': False,
+        },
         'admin_dashboard': {
             'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,
         },
         'notifications': {
+            'handlers': _LOGGING_HANDLERS,
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'subscriptions': {
             'handlers': _LOGGING_HANDLERS,
             'level': 'INFO',
             'propagate': False,

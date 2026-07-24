@@ -5,6 +5,7 @@
 // PATCH /api/auth/me/artisan-profile/ — no profile ID required.
 
 import 'dart:io';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/location_service.dart';
@@ -343,13 +344,10 @@ class _EditArtisanProfileScreenState extends State<EditArtisanProfileScreen> {
                         onTap: _isUploadingPicture ? null : _showImageSourceDialog,
                         child: Stack(
                           children: [
-                            CircleAvatar(
+                            ProfileAvatar(
+                              imageUrl: photoUrl,
+                              name: context.watch<ProfileViewModel>().user?.fullName ?? '',
                               radius: 50,
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                              child: photoUrl == null
-                                  ? Icon(Icons.person_rounded, size: 50, color: Theme.of(context).colorScheme.primary)
-                                  : null,
                             ),
                             if (_isUploadingPicture)
                               Positioned.fill(

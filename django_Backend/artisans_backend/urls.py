@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/disputes/', include('disputes.urls')),
     path('api/reviews/', include('reviews.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/subscriptions/', include('subscriptions.urls')),
     # SECURITY: Swagger UI restricted to admin users in production
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='schema-swagger-ui'),
     path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminRole]), name='schema'),

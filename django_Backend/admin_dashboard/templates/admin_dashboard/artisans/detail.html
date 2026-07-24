@@ -77,4 +77,46 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Subscription Info -->
+<div class="mt-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h5 class="font-semibold text-gray-900">Subscription</h5>
+        {% if subscription %}
+        <a href="{% url 'admin_dashboard:subscription_activate' subscription.pk %}" class="px-3 py-1.5 bg-brand text-white rounded-lg text-xs font-medium hover:bg-brand-dark transition-colors">
+            <i class="bi bi-pencil mr-1"></i>Change Tier
+        </a>
+        {% else %}
+        <a href="{% url 'admin_dashboard:subscription_create' %}?artisan_id={{ profile.pk }}" class="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors">
+            <i class="bi bi-plus-lg mr-1"></i>Create Subscription
+        </a>
+        {% endif %}
+    </div>
+    <div class="divide-y divide-gray-100">
+        {% if subscription %}
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Tier</span>
+            {% if subscription.effective_tier == 'PREMIUM' %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800"><i class="bi bi-gem mr-1"></i>Premium</span>
+            {% elif subscription.effective_tier == 'PRO' %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800"><i class="bi bi-star-fill mr-1"></i>Pro</span>
+            {% else %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Free</span>
+            {% endif %}
+        </div>
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Status</span>{% if subscription.is_active %}<span class="text-green-600 font-medium">Active</span>{% else %}<span class="text-gray-400">Inactive</span>{% endif %}</div>
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Expires</span><span class="font-medium">{{ subscription.expires_at|date:"d M Y"|default:"No expiry" }}</span></div>
+        <div class="flex justify-between px-5 py-3"><span class="text-gray-500">Activated By</span><span class="font-medium">{{ subscription.activated_by.username|default:"—" }}</span></div>
+        {% if subscription.notes %}
+        <div class="px-5 py-3"><span class="text-gray-500">Notes</span><p class="text-sm text-gray-700 mt-1 bg-gray-50 rounded p-2">{{ subscription.notes }}</p></div>
+        {% endif %}
+        {% else %}
+        <div class="px-5 py-6 text-center">
+            <p class="text-gray-400 text-sm">No subscription record. This artisan is on the <strong>Free</strong> tier by default.</p>
+            <a href="{% url 'admin_dashboard:subscription_create' %}?artisan_id={{ profile.pk }}" class="inline-block mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors">
+                <i class="bi bi-plus-lg mr-1"></i>Activate Subscription
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

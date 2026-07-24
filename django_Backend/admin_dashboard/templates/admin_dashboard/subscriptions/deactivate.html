@@ -1,0 +1,71 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Deactivate Subscription — {{ subscription.artisan.user.username }} — Fix-It Admin{% endblock %}
+{% block nav_subscriptions %}active{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Deactivate Subscription</h1>
+    <p class="text-gray-500 text-sm mt-1">Revert {{ subscription.artisan.user.username }}'s subscription to Free</p>
+</div>
+
+<!-- Subscription details -->
+<div class="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
+    <div class="mb-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                <i class="bi bi-person text-gray-600"></i>
+            </div>
+            <div>
+                <p class="font-medium">{{ subscription.artisan.user.username }}</p>
+                <p class="text-sm text-gray-500">{{ subscription.artisan.profession|default:"No profession" }}</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+                <p class="text-xs text-gray-400">Current Tier</p>
+                <p class="font-medium">
+                    {% if subscription.tier == 'PREMIUM' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">Premium</span>
+                    {% elif subscription.tier == 'PRO' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Pro</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Free</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400">Expires</p>
+                <p class="font-medium">{{ subscription.expires_at|date:"d M Y"|default:"—" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
+        <div class="flex items-start gap-3">
+            <i class="bi bi-exclamation-triangle-fill text-red-500 mt-0.5"></i>
+            <div>
+                <p class="text-sm font-medium text-red-800">Are you sure you want to deactivate this subscription?</p>
+                <p class="text-xs text-red-600 mt-1">
+                    This will revert {{ subscription.artisan.user.username }} to the Free tier. They will lose access to all
+                    Pro/Premium features, including unlimited bookings and search priority.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="flex gap-3">
+            <button type="submit"
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors">
+                <i class="bi bi-x-circle mr-1"></i>Yes, Deactivate
+            </button>
+            <a href="{% url 'admin_dashboard:subscription_list' %}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

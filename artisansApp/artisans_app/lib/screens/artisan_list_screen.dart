@@ -3,6 +3,7 @@ import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/theme/app_spacing.dart';
 import 'package:artisans_app/widgets/status_badge.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/widgets/empty_state.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/viewmodels/base_view_model.dart';
@@ -64,21 +65,12 @@ class ArtisanListScreen extends StatelessWidget {
                             // Avatar with availability indicator
                             Stack(
                               children: [
-                                CircleAvatar(
+                                ProfileAvatar(
+                                  imageUrl: artisan.profilePicture,
+                                  name: artisan.fullName,
                                   radius: 24,
                                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                                  backgroundImage: (artisan.profilePicture != null && artisan.profilePicture!.isNotEmpty)
-                                      ? NetworkImage(artisan.profilePicture!)
-                                      : null,
-                                  child: artisan.profilePicture == null || artisan.profilePicture!.isEmpty
-                                      ? Text(
-                                          artisan.fullName.isNotEmpty ? artisan.fullName[0].toUpperCase() : '?',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primary,
-                                          ),
-                                        )
-                                      : null,
+                                  foregroundColor: AppColors.primary,
                                 ),
                                 Positioned(
                                   right: 0,

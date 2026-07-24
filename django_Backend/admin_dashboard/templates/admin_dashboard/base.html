@@ -69,6 +69,10 @@
            class="nav-link {% block nav_artisans %}{% endblock %}">
             <i class="bi bi-person-badge w-5 text-center"></i>Artisans
         </a>
+        <a href="{% url 'admin_dashboard:subscription_list' %}"
+           class="nav-link {% block nav_subscriptions %}{% endblock %}">
+            <i class="bi bi-rocket-takeoff w-5 text-center"></i>Subscriptions
+        </a>
         <a href="{% url 'admin_dashboard:job_list' %}"
            class="nav-link {% block nav_jobs %}{% endblock %}">
             <i class="bi bi-briefcase w-5 text-center"></i>Jobs

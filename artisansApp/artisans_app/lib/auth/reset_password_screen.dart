@@ -52,9 +52,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _isLoading = true);
     try {
       await _apiClient.post('/api/auth/reset-password/', body: {
-        'email': widget.email,
         'otp': _otpController.text.trim(),
         'new_password': _passwordController.text.trim(),
+        'new_password2': _confirmPasswordController.text.trim(),
       });
 
       if (!mounted) return;

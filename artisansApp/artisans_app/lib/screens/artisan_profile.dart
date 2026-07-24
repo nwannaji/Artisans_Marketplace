@@ -12,6 +12,7 @@ import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
 import 'package:artisans_app/screens/edit_customer_profile_screen.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/theme/app_spacing.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
@@ -338,12 +339,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         // ── Profile Header ──
         Center(
-          child: CircleAvatar(
+          child: ProfileAvatar(
+            imageUrl: a.profilePicture,
+            name: a.fullName,
             radius: 50,
-            backgroundImage: a.profilePicture != null ? NetworkImage(a.profilePicture!) : null,
-            child: a.profilePicture == null
-                ? Text(a.fullName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 24))
-                : null,
           ),
         ),
         const SizedBox(height: 12),
@@ -1113,13 +1112,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
           onTap: _isUploadingPicture ? null : _showImageSourceDialog,
           child: Stack(
             children: [
-              CircleAvatar(
+              ProfileAvatar(
+                imageUrl: photoUrl,
+                name: widget.user.fullName,
                 radius: 60,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                child: photoUrl == null
-                    ? Icon(Icons.person_rounded, size: 60, color: Theme.of(context).colorScheme.primary)
-                    : null,
               ),
               if (_isUploadingPicture)
                 Positioned.fill(
@@ -1352,10 +1348,10 @@ class _BookingSheetState extends State<_BookingSheet> {
           // Artisan summary
           Row(
             children: [
-              CircleAvatar(
+              ProfileAvatar(
+                imageUrl: a.profilePicture,
+                name: a.fullName,
                 radius: 24,
-                backgroundImage: a.profilePicture != null ? NetworkImage(a.profilePicture!) : null,
-                child: a.profilePicture == null ? Text(a.fullName.substring(0, 1)) : null,
               ),
               const SizedBox(width: 12),
               Expanded(

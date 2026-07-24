@@ -7,7 +7,8 @@ from .models import Conversation, Chat
 from accounts.models import User
 from accounts.permissions import IsAdminRole
 from .serializers import (
-    ChatSerializer, ConversationSerializer, ConversationCreateSerializer
+    ChatSerializer, ConversationSerializer, ConversationCreateSerializer,
+    ConversationUpdateSerializer,
 )
 
 
@@ -40,18 +41,45 @@ class ConversationListCreateAPIView(generics.ListCreateAPIView):
         return Response(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class ConversationDetailAPIView(generics.RetrieveAPIView):
+class ConversationDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = Conversation.objects.all()
-    serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ('PATCH', 'PUT'):
+            return ConversationUpdateSerializer
+        return ConversationSerializer
 
     def get_object(self):
         conversation = super().get_object()
         user = self.request.user
-        # Allow participants and admins to view
+        # Allow participants and admins to view/edit
         if user.role != User.Role.ADMIN and user not in [conversation.client, conversation.artisan]:
             raise exceptions.PermissionDenied("You are not a participant in this conversation.")
         return conversation
+
+
+class MessageDeleteAPIView(generics.DestroyAPIView):
+    """Allow users to delete their own messages, or admins to delete any message."""
+    queryset = Chat.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        message = super().get_object()
+        user = self.request.user
+        # Only the sender can delete their own message, or admins can delete any
+        if user.role != User.Role.ADMIN and message.sender_id != user.id:
+            raise exceptions.PermissionDenied("You can only delete your own messages.")
+        return message
+
+    def perform_destroy(self, instance):
+        # Clean up audio file from disk before deletion
+        if instance.audio_file:
+            try:
+                instance.audio_file.delete(save=False)
+            except Exception:
+                pass
+        instance.delete()
 
 
 class ChatListCreateAPIView(generics.ListCreateAPIView):

@@ -2,6 +2,7 @@ import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/artisan_profile.dart';
 import 'package:artisans_app/widgets/rating_selector.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
@@ -555,22 +556,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   // Avatar with availability indicator
                   Stack(
                     children: [
-                      CircleAvatar(
+                      ProfileAvatar(
+                        imageUrl: artisan.profilePicture,
+                        name: artisan.fullName,
                         radius: 28,
-                        backgroundImage: artisan.profilePicture != null
-                            ? NetworkImage(artisan.profilePicture!)
-                            : null,
                         backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                        child: artisan.profilePicture == null
-                            ? Text(
-                                artisan.fullName.substring(0, 1).toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                              )
-                            : null,
+                        foregroundColor: Theme.of(context).primaryColor,
                       ),
                       Positioned(
                         right: 0,
@@ -722,18 +713,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 children: [
                   Stack(
                     children: [
-                      CircleAvatar(
+                      ProfileAvatar(
+                        imageUrl: artisan.profilePicture,
+                        name: artisan.fullName,
                         radius: 28,
-                        backgroundImage: artisan.profilePicture != null
-                            ? NetworkImage(artisan.profilePicture!)
-                            : null,
                         backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                        child: artisan.profilePicture == null
-                            ? Text(
-                                artisan.fullName.substring(0, 1).toUpperCase(),
-                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
-                              )
-                            : null,
+                        foregroundColor: Theme.of(context).primaryColor,
                       ),
                       Positioned(
                         right: 0,

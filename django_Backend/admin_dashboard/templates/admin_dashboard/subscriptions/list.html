@@ -1,0 +1,176 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}Subscriptions — Fix-It Admin{% endblock %}
+{% block nav_subscriptions %}active{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Subscriptions</h1>
+    <p class="text-gray-500 text-sm mt-1">Manage artisan subscription tiers</p>
+</div>
+
+<!-- Stats cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                <i class="bi bi-star-fill text-amber-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Pro Subscriptions</p>
+                <p class="text-xl font-bold text-gray-800">{{ active_pro_subscriptions }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                <i class="bi bi-gem text-purple-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Premium Subscriptions</p>
+                <p class="text-xl font-bold text-gray-800">{{ active_premium_subscriptions }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                <i class="bi bi-person text-gray-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Free Tier Artisans</p>
+                <p class="text-xl font-bold text-gray-800">{{ free_artisans_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters and Create button -->
+<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm font-medium text-gray-600 mb-1">Search</label>
+            <input type="text" name="search" value="{{ search }}" placeholder="Search by username..."
+                   class="{{ input_class }} w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Tier</label>
+            <select name="tier" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+                <option value="">All Tiers</option>
+                {% for value, label in tier_choices %}
+                <option value="{{ value }}" {% if tier_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Status</label>
+            <select name="status" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+                <option value="">All Statuses</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expired</option>
+                <option value="free" {% if status_filter == 'free' %}selected{% endif %}>Free</option>
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-colors">
+            <i class="bi bi-search mr-1"></i>Filter
+        </button>
+        <a href="{% url 'admin_dashboard:subscription_create' %}"
+           class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors">
+            <i class="bi bi-plus-lg mr-1"></i>Create Subscription
+        </a>
+    </form>
+</div>
+
+<!-- Subscriptions table -->
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Artisan</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Tier</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Expires</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Activated By</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in page_obj %}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="px-4 py-3">
+                    <a href="{% url 'admin_dashboard:artisan_detail' sub.artisan.pk %}"
+                       class="text-brand hover:underline font-medium">{{ sub.artisan.user.username }}</a>
+                    <br><span class="text-xs text-gray-400">{{ sub.artisan.profession|default:"—" }}</span>
+                </td>
+                <td class="px-4 py-3">
+                    {% if sub.tier == 'PREMIUM' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                        <i class="bi bi-gem mr-1"></i>Premium
+                    </span>
+                    {% elif sub.tier == 'PRO' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                        <i class="bi bi-star-fill mr-1"></i>Pro
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Free</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    {% if sub.is_active %}
+                    <span class="text-green-600 font-medium">Active</span>
+                    {% else %}
+                    <span class="text-gray-400">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-xs">
+                    {% if sub.expires_at %}
+                    {{ sub.expires_at|date:"d M Y" }}
+                    {% else %}
+                    <span class="text-gray-400">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-xs">
+                    {{ sub.activated_by.username|default:"—" }}
+                </td>
+                <td class="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate">
+                    {{ sub.notes|default:"—" }}
+                </td>
+                <td class="px-4 py-3">
+                    <div class="flex gap-2">
+                        <a href="{% url 'admin_dashboard:subscription_activate' sub.pk %}"
+                           class="text-brand hover:underline text-xs font-medium">Change Tier</a>
+                        {% if sub.is_active %}
+                        <a href="{% url 'admin_dashboard:subscription_deactivate' sub.pk %}"
+                           class="text-red-600 hover:underline text-xs font-medium">Deactivate</a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-gray-400">
+                    No subscriptions found. {% if not search and not tier_filter %}Create one to get started.{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="mt-4 flex justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&search={{ search }}&tier={{ tier_filter }}&status={{ status_filter }}"
+       class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">&laquo; Previous</a>
+    {% endif %}
+    <span class="px-3 py-1 text-sm text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&search={{ search }}&tier={{ tier_filter }}&status={{ status_filter }}"
+       class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

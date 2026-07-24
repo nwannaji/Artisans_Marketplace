@@ -1,0 +1,107 @@
+{% extends "admin_dashboard/base.html" %}
+
+{% block title %}{% if is_create %}Create Subscription{% else %}Change Tier — {{ subscription.artisan.user.username }}{% endif %} — Fix-It Admin{% endblock %}
+{% block nav_subscriptions %}active{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">
+        {% if is_create %}Create Subscription{% else %}Change Tier — {{ subscription.artisan.user.username }}{% endif %}
+    </h1>
+    <p class="text-gray-500 text-sm mt-1">
+        {% if is_create %}Activate a subscription tier for an artisan after receiving offline payment.{% else %}Change the subscription tier for {{ subscription.artisan.user.username }}.{% endif %}
+    </p>
+</div>
+
+{% if not is_create %}
+<!-- Current subscription info -->
+<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+    <h2 class="text-sm font-semibold text-gray-600 mb-3">Current Subscription</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+            <p class="text-xs text-gray-400">Artisan</p>
+            <p class="font-medium">{{ subscription.artisan.user.username }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-400">Current Tier</p>
+            <p class="font-medium">
+                {% if subscription.tier == 'PREMIUM' %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">Premium</span>
+                {% elif subscription.tier == 'PRO' %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Pro</span>
+                {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Free</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-400">Expires</p>
+            <p class="font-medium">{{ subscription.expires_at|date:"d M Y"|default:"—" }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-400">Status</p>
+            <p class="font-medium">
+                {% if subscription.is_active %}
+                <span class="text-green-600">Active</span>
+                {% else %}
+                <span class="text-gray-400">Inactive</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Form -->
+<div class="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
+    <form method="post">
+        {% csrf_token %}
+
+        {% if is_create %}
+        <div class="mb-4">
+            <label for="id_artisan_id" class="block text-sm font-medium text-gray-700 mb-1">Artisan</label>
+            <select name="artisan_id" id="id_artisan_id"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none">
+                <option value="">Select an artisan...</option>
+                {% for artisan in free_artisans %}
+                <option value="{{ artisan.pk }}" {% if artisan.pk|stringformat:"s" == artisan_id %}selected{% endif %}>
+                    {{ artisan.user.username }} — {{ artisan.profession|default:"No profession" }}
+                </option>
+                {% endfor %}
+            </select>
+            {% if artisan_id %}
+            <input type="hidden" name="artisan_id" value="{{ artisan_id }}">
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% for field in form %}
+        <div class="mb-4">
+            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+                {{ field.label }}
+            </label>
+            {{ field }}
+            {% if field.help_text %}
+            <p class="mt-1 text-xs text-gray-400">{{ field.help_text }}</p>
+            {% endif %}
+            {% if field.errors %}
+            {% for error in field.errors %}
+            <p class="mt-1 text-xs text-red-600">{{ error }}</p>
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="flex gap-3 mt-6">
+            <button type="submit"
+                    class="px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-dark transition-colors">
+                {% if is_create %}Create Subscription{% else %}Update Tier{% endif %}
+            </button>
+            <a href="{% url 'admin_dashboard:subscription_list' %}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

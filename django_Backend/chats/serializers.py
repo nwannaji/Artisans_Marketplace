@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Conversation, Chat
 from accounts.models import User
 
@@ -35,13 +38,24 @@ class ConversationSerializer(serializers.ModelSerializer):
     artisan_username = serializers.CharField(source='artisan.username', read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    other_user_online = serializers.SerializerMethodField()
+    message_ttl_days = serializers.IntegerField(min_value=0, required=False)
 
     class Meta:
         model = Conversation
         fields = ['id', 'client', 'client_username', 'artisan', 'artisan_username',
                   'admin', 'related_job', 'conversation_type', 'is_active',
-                  'created_at', 'last_message', 'unread_count']
+                  'message_ttl_days', 'created_at', 'last_message', 'unread_count',
+                  'other_user_online']
         read_only_fields = ['created_at']
+
+    def validate_message_ttl_days(self, value):
+        valid = [choice[0] for choice in Conversation.MESSAGE_TTL_CHOICES]
+        if value not in valid:
+            raise serializers.ValidationError(
+                f"message_ttl_days must be one of {valid}"
+            )
+        return value
 
     def get_last_message(self, obj):
         last_msg = obj.messages.order_by('-timestamp').first()
@@ -74,6 +88,41 @@ class ConversationSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.messages.filter(is_read=False).exclude(sender=request.user).count()
         return 0
+
+    def get_other_user_online(self, obj):
+        """Return whether the other participant in the conversation is online.
+
+        Online means last_active was within the last 3 minutes.
+        The 'other user' is the one who is NOT the requesting user.
+        """
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+
+        # Determine the other user in the conversation
+        if request.user.id == obj.client_id:
+            other_user = obj.artisan
+        else:
+            other_user = obj.client
+
+        if other_user.last_active:
+            return other_user.last_active >= timezone.now() - timedelta(minutes=3)
+        return False
+
+
+class ConversationUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating conversation settings (TTL, active status)."""
+    class Meta:
+        model = Conversation
+        fields = ['message_ttl_days', 'is_active']
+
+    def validate_message_ttl_days(self, value):
+        valid = [choice[0] for choice in Conversation.MESSAGE_TTL_CHOICES]
+        if value not in valid:
+            raise serializers.ValidationError(
+                f"message_ttl_days must be one of {valid}"
+            )
+        return value
 
 
 class ConversationCreateSerializer(serializers.ModelSerializer):

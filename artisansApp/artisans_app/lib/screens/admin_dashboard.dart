@@ -1,4 +1,5 @@
 import 'package:artisans_app/models/job.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
@@ -185,13 +186,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               // Header
               Row(
                 children: [
-                  CircleAvatar(
+                  ProfileAvatar(
+                    imageUrl: artisan.profilePicture,
+                    name: artisan.fullName,
                     radius: 32,
-                    backgroundImage: artisan.profilePicture != null ? NetworkImage(artisan.profilePicture!) : null,
-                    backgroundColor: Colors.grey.shade200,
-                    child: artisan.profilePicture == null
-                        ? Text(artisan.fullName.substring(0, 1).toUpperCase(), style: const TextStyle(fontSize: 24))
-                        : null,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -600,23 +598,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           child: Row(
             children: [
               // Avatar
-              CircleAvatar(
+              ProfileAvatar(
+                imageUrl: artisan.profilePicture,
+                name: artisan.fullName,
                 radius: 22,
-                backgroundImage: artisan.profilePicture != null ? NetworkImage(artisan.profilePicture!) : null,
                 backgroundColor: !artisan.userIsActive
                     ? Colors.red.shade100
                     : artisan.isVerified
                         ? Colors.green.shade100
                         : Colors.orange.shade100,
-                child: artisan.profilePicture == null
-                    ? Text(
-                        artisan.fullName.substring(0, 1).toUpperCase(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: !artisan.userIsActive ? Colors.red.shade700 : artisan.isVerified ? Colors.green.shade700 : Colors.orange.shade700,
-                        ),
-                      )
-                    : null,
+                foregroundColor: !artisan.userIsActive
+                    ? Colors.red.shade700
+                    : artisan.isVerified
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
               ),
               const SizedBox(width: 12),
               // Info

@@ -24,6 +24,10 @@ class Artisan extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // Subscription tier fields from API
+  final String? subscriptionTier;  // 'FREE', 'PRO', 'PREMIUM', or null
+  final String? subscriptionBadge;  // 'Pro', 'Premium', or null
+
   // Fields populated only from nearby search response
   final double? distanceKm;
   final int? estimatedArrivalMinutes;
@@ -52,6 +56,8 @@ class Artisan extends Equatable {
     this.distanceKm,
     this.estimatedArrivalMinutes,
     this.reviewCount = 0,
+    this.subscriptionTier,
+    this.subscriptionBadge,
   });
 
   String get fullName => username ?? 'Unknown';
@@ -81,6 +87,7 @@ class Artisan extends Equatable {
     skills, hourlyRate, rating, jobsCompleted, location,
     latitude, longitude, verificationDocuments, isVerified,
     userIsActive, isAvailable, distanceKm, estimatedArrivalMinutes, reviewCount,
+    subscriptionTier, subscriptionBadge,
   ];
 
   Artisan copyWith({
@@ -104,6 +111,8 @@ class Artisan extends Equatable {
     double? distanceKm,
     int? estimatedArrivalMinutes,
     int? reviewCount,
+    String? subscriptionTier,
+    String? subscriptionBadge,
   }) {
     return Artisan(
       id: id ?? this.id,
@@ -126,6 +135,8 @@ class Artisan extends Equatable {
       distanceKm: distanceKm ?? this.distanceKm,
       estimatedArrivalMinutes: estimatedArrivalMinutes ?? this.estimatedArrivalMinutes,
       reviewCount: reviewCount ?? this.reviewCount,
+      subscriptionTier: subscriptionTier ?? this.subscriptionTier,
+      subscriptionBadge: subscriptionBadge ?? this.subscriptionBadge,
     );
   }
 
@@ -154,6 +165,9 @@ class Artisan extends Equatable {
       distanceKm: _parseDouble(json['distance_km']),
       estimatedArrivalMinutes: json['estimated_arrival_minutes'] as int?,
       reviewCount: json['review_count'] as int? ?? 0,
+      // Subscription fields
+      subscriptionTier: json['subscription_tier'] as String?,
+      subscriptionBadge: json['subscription_badge'] as String?,
     );
   }
 

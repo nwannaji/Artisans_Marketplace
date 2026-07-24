@@ -3,12 +3,15 @@ import 'dart:io';
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/screens/dispute_screen.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/screens/edit_artisan_profile_screen.dart';
 import 'package:artisans_app/widgets/scattered_background_image.dart';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
+import 'package:artisans_app/services/subscription_api_service.dart';
+import 'package:artisans_app/models/subscription.dart';
 import 'package:artisans_app/services/location_service.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +35,8 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
   bool _isTogglingAvailability = false;
   bool _isUploadingPicture = false;
   Timer? _gpsUpdateTimer;
+  Subscription? _subscription;
+  final _subscriptionService = SubscriptionApiService();
 
   @override
   void initState() {
@@ -65,6 +70,13 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
           }
         } catch (_) {
           // Profile may not exist yet, that's okay
+        }
+        // Load subscription info
+        try {
+          _subscription = await _subscriptionService.getMySubscription();
+        } catch (_) {
+          // Subscription may not exist yet — default to FREE
+          _subscription = Subscription.defaultFree();
         }
       }
       setState(() { _isLoading = false; _error = null; });
@@ -435,6 +447,9 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                           const SizedBox(height: 12),
                           // Availability toggle card
                           _buildAvailabilityToggle(),
+                          const SizedBox(height: 12),
+                          // Subscription status card
+                          _buildSubscriptionCard(),
                           const SizedBox(height: 16),
                         ] else ...[
                           Card(
@@ -488,14 +503,10 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
               onTap: _isUploadingPicture ? null : _showImageSourceDialog,
               child: Stack(
                 children: [
-                  CircleAvatar(
+                  ProfileAvatar(
+                    imageUrl: a.profilePicture,
+                    name: a.fullName,
                     radius: 30,
-                    backgroundImage: a.profilePicture != null ? NetworkImage(a.profilePicture!) : null,
-                    backgroundColor: Colors.grey.shade200,
-                    child: a.profilePicture == null
-                        ? Text(a.fullName.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))
-                        : null,
                   ),
                   if (_isUploadingPicture)
                     Positioned.fill(
@@ -659,6 +670,87 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
                   _toggleAvailability(selected.first);
                 }
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard() {
+    final sub = _subscription;
+    final isFree = sub?.isFree ?? true;
+    final tierLabel = sub?.tierLabel ?? 'Free';
+    final Color tierColor = sub?.isPremium == true
+        ? Colors.purple
+        : sub?.isPro == true
+            ? Colors.amber[700]!
+            : Colors.grey;
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isFree ? Icons.workspace_premium_outlined : Icons.verified,
+                  color: tierColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Plan: $tierLabel',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+                const Spacer(),
+                if (sub?.expiresAt != null)
+                  Text(
+                    'Exp: ${sub!.expiresAt!.day}/${sub.expiresAt!.month}/${sub.expiresAt!.year}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+              ],
+            ),
+            if (isFree) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.amber[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Free plan allows 3 bookings/month. Upgrade for unlimited bookings and more visibility.',
+                        style: TextStyle(fontSize: 12, color: Colors.amber[800]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/plans'),
+                icon: Icon(isFree ? Icons.upgrade : Icons.settings, size: 18),
+                label: Text(isFree ? 'View Plans' : 'Manage Plan'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: tierColor,
+                  side: BorderSide(color: tierColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
             ),
           ],
         ),

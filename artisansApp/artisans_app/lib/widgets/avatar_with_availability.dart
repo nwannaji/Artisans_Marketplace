@@ -1,9 +1,11 @@
 // lib/widgets/avatar_with_availability.dart
 //
 // A CircleAvatar with an availability indicator dot.
-// Replaces the duplicated Stack+CircleAvatar+Positioned pattern.
+// Uses ProfileAvatar internally so broken image URLs (404) show
+// the initial letter instead of crashing.
 
 import 'package:flutter/material.dart';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import '../theme/app_colors.dart';
 
 class AvatarWithAvailability extends StatelessWidget {
@@ -31,20 +33,12 @@ class AvatarWithAvailability extends StatelessWidget {
       onTap: onTap,
       child: Stack(
         children: [
-          CircleAvatar(
+          ProfileAvatar(
+            imageUrl: imageUrl,
+            name: fallbackInitial,
             radius: radius,
             backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-            backgroundImage: imageUrl != null ? NetworkImage(imageName!) : null,
-            child: imageUrl == null
-                ? Text(
-                    fallbackInitial.isNotEmpty ? fallbackInitial[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                      fontSize: radius * 0.7,
-                    ),
-                  )
-                : null,
+            foregroundColor: AppColors.primary,
           ),
           Positioned(
             right: 0,
@@ -65,6 +59,4 @@ class AvatarWithAvailability extends StatelessWidget {
       ),
     );
   }
-
-  String? get imageName => imageUrl;
 }

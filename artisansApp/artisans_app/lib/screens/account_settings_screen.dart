@@ -1,5 +1,6 @@
 // lib/screens/account_settings_screen.dart
 import 'dart:io';
+import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/services/api_exception.dart';
 import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/viewmodels/profile_view_model.dart';
@@ -257,13 +258,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   onTap: _isUploadingPicture ? null : _showImageSourceDialog,
                   child: Stack(
                     children: [
-                      CircleAvatar(
+                      ProfileAvatar(
+                        imageUrl: photoUrl,
+                        name: user?.fullName ?? '',
                         radius: 50,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                        child: photoUrl == null
-                            ? Icon(Icons.person_rounded, size: 50, color: Theme.of(context).colorScheme.primary)
-                            : null,
                       ),
                       if (_isUploadingPicture)
                         Positioned.fill(

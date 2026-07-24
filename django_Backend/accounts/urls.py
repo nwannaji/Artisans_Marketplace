@@ -16,6 +16,7 @@ from .views import (
     ResetPasswordView,
     VerificationDocumentUploadView,
     VerificationDocumentDeleteView,
+    UserOnlineStatusView,
 )
 app_name = 'accounts'
 
@@ -35,5 +36,6 @@ urlpatterns = [
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
     path('users/<int:pk>/activate/', UserActivateAPIView.as_view(), name='user-activate'),
+    path('users/<int:user_id>/online/', UserOnlineStatusView.as_view(), name='user-online-status'),
     path('customers/', CustomerListAPIView.as_view(), name='customer-list'),
 ]

@@ -3,18 +3,21 @@ import logging
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
 from django.db import transaction as db_transaction, connection
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .decorators import admin_required
-from .forms import LoginForm, DisputeResolveForm, ChatMessageForm, UserEditForm, CustomerProfileEditForm, ArtisanProfileEditForm, UserDeleteConfirmForm
+from .forms import LoginForm, DisputeResolveForm, ChatMessageForm, UserEditForm, CustomerProfileEditForm, ArtisanProfileEditForm, UserDeleteConfirmForm, SubscriptionActivateForm
 from accounts.models import User, ArtisanProfile, CustomerProfile
 from bookings.models import Job
 from chats.models import Conversation, Chat
 from disputes.models import Dispute
 from reviews.models import Review
+from subscriptions.models import Subscription
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +112,24 @@ def dashboard_overview(request):
         'job__customer', 'job__artisan__user'
     ).order_by('-created_at')[:5]
 
+    # Subscription stats
+    now = timezone.now()
+    active_pro = Subscription.objects.filter(
+        tier__in=[Subscription.Tier.PRO, Subscription.Tier.PREMIUM],
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).count()
+    active_premium = Subscription.objects.filter(
+        tier=Subscription.Tier.PREMIUM,
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).count()
+    free_tier_artisans = ArtisanProfile.objects.filter(
+        subscription__isnull=True
+    ).count() + Subscription.objects.filter(
+        tier=Subscription.Tier.FREE,
+    ).count()
+
     context = {
         'total_users': total_users,
         'active_users': active_users,
@@ -125,6 +146,9 @@ def dashboard_overview(request):
         'open_disputes': open_disputes,
         'recent_jobs': recent_jobs,
         'recent_disputes': recent_disputes,
+        'active_pro_subscriptions': active_pro,
+        'active_premium_subscriptions': active_premium,
+        'free_tier_artisans': free_tier_artisans,
     }
     return render(request, 'admin_dashboard/dashboard.html', context)
 
@@ -274,10 +298,17 @@ def artisan_detail(request, pk):
     jobs = Job.objects.filter(artisan=profile).select_related('customer').order_by('-created_at')[:10]
     review_count = Job.objects.filter(artisan=profile, status=Job.Status.COMPLETED, rating__isnull=False).count()
 
+    # Get subscription info
+    try:
+        subscription = profile.subscription
+    except Subscription.DoesNotExist:
+        subscription = None
+
     context = {
         'profile': profile,
         'jobs': jobs,
         'review_count': review_count,
+        'subscription': subscription,
     }
     return render(request, 'admin_dashboard/artisans/detail.html', context)
 
@@ -743,5 +774,144 @@ def artisan_delete(request, pk):
         'confirm_form': UserDeleteConfirmForm(),
     }
     return render(request, 'admin_dashboard/artisans/delete.html', context)
+
+
+# ========================
+# Subscription Management
+# ========================
+
+@admin_required
+def subscription_list(request):
+    """List all subscriptions with search and filters."""
+    search = request.GET.get('search', '')
+    tier_filter = request.GET.get('tier', '')
+    status_filter = request.GET.get('status', '')
+
+    qs = Subscription.objects.select_related('artisan__user', 'activated_by').all()
+
+    if search:
+        qs = qs.filter(Q(artisan__user__username__icontains=search))
+    if tier_filter:
+        qs = qs.filter(tier=tier_filter)
+    if status_filter == 'active':
+        qs = qs.filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+        ).exclude(tier=Subscription.Tier.FREE)
+    elif status_filter == 'expired':
+        qs = qs.filter(expires_at__lt=timezone.now()).exclude(tier=Subscription.Tier.FREE)
+    elif status_filter == 'free':
+        qs = qs.filter(tier=Subscription.Tier.FREE)
+
+    qs = qs.order_by('-updated_at')
+
+    paginator = Paginator(qs, 25)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Also get artisans with no subscription (FREE tier by default)
+    free_artisans_count = ArtisanProfile.objects.filter(subscription__isnull=True).count()
+
+    context = {
+        'page_obj': page_obj,
+        'search': search,
+        'tier_filter': tier_filter,
+        'status_filter': status_filter,
+        'tier_choices': Subscription.Tier.choices,
+        'free_artisans_count': free_artisans_count,
+    }
+    return render(request, 'admin_dashboard/subscriptions/list.html', context)
+
+
+@admin_required
+def subscription_create(request):
+    """Create a new subscription for an artisan."""
+    artisan_id = request.GET.get('artisan_id', '')
+
+    # Get artisans without a subscription (FREE by default)
+    free_artisans = ArtisanProfile.objects.filter(
+        subscription__isnull=True, user__is_active=True
+    ).select_related('user').order_by('user__username')
+
+    if request.method == 'POST':
+        form = SubscriptionActivateForm(request.POST)
+        if form.is_valid():
+            artisan_pk = request.POST.get('artisan_id')
+            try:
+                artisan = ArtisanProfile.objects.get(pk=artisan_pk)
+            except (ArtisanProfile.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'Artisan not found.')
+                return redirect('admin_dashboard:subscription_list')
+
+            if Subscription.objects.filter(artisan=artisan).exists():
+                messages.error(request, f'{artisan.user.username} already has a subscription. Use the activate page to change their tier.')
+                return redirect('admin_dashboard:subscription_list')
+
+            subscription = Subscription.objects.create(
+                artisan=artisan,
+                tier=form.cleaned_data['tier'],
+                expires_at=timezone.now() + timedelta(days=form.cleaned_data['duration_days']),
+                activated_by=request.user,
+                notes=form.cleaned_data.get('notes', ''),
+            )
+            messages.success(request, f'{artisan.user.username} upgraded to {subscription.get_tier_display()}.')
+            logger.info("Subscription created for %s (tier=%s) by admin %s",
+                        artisan.user.username, subscription.tier, request.user.username)
+            return redirect('admin_dashboard:subscription_list')
+    else:
+        form = SubscriptionActivateForm()
+
+    context = {
+        'form': form,
+        'artisan_id': artisan_id,
+        'free_artisans': free_artisans,
+        'is_create': True,
+    }
+    return render(request, 'admin_dashboard/subscriptions/activate.html', context)
+
+
+@admin_required
+def subscription_activate(request, pk):
+    """Activate or change a subscription tier."""
+    subscription = get_object_or_404(Subscription, pk=pk)
+
+    if request.method == 'POST':
+        form = SubscriptionActivateForm(request.POST)
+        if form.is_valid():
+            subscription.tier = form.cleaned_data['tier']
+            subscription.expires_at = timezone.now() + timedelta(days=form.cleaned_data['duration_days'])
+            subscription.activated_by = request.user
+            subscription.notes = form.cleaned_data.get('notes', '') or subscription.notes
+            subscription.save()
+            messages.success(request, f'{subscription.artisan.user.username} upgraded to {subscription.get_tier_display()}.')
+            logger.info("Subscription %s activated (tier=%s) by admin %s",
+                        subscription.pk, subscription.tier, request.user.username)
+            return redirect('admin_dashboard:subscription_list')
+    else:
+        form = SubscriptionActivateForm()
+
+    context = {
+        'subscription': subscription,
+        'form': form,
+        'is_create': False,
+    }
+    return render(request, 'admin_dashboard/subscriptions/activate.html', context)
+
+
+@admin_required
+def subscription_deactivate(request, pk):
+    """Revert subscription to FREE."""
+    subscription = get_object_or_404(Subscription, pk=pk)
+
+    if request.method == 'POST':
+        subscription.tier = Subscription.Tier.FREE
+        subscription.expires_at = None
+        subscription.activated_by = request.user
+        subscription.save()
+        messages.success(request, f'{subscription.artisan.user.username} subscription reverted to Free.')
+        logger.info("Subscription %s deactivated by admin %s", subscription.pk, request.user.username)
+        return redirect('admin_dashboard:subscription_list')
+
+    context = {'subscription': subscription}
+    return render(request, 'admin_dashboard/subscriptions/deactivate.html', context)
 
 

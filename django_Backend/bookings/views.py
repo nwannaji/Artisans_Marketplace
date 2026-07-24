@@ -12,6 +12,7 @@ from .models import Job
 from .serializers import JobSerializer, JobCreateSerializer, JobRatingSerializer
 from accounts.models import User
 from accounts.models import ArtisanProfile
+from subscriptions.utils import get_effective_tier, get_monthly_booking_limit, get_current_month_booking_count
 
 logger = logging.getLogger(__name__)
 
@@ -292,6 +293,18 @@ class JobCreateWithArtisanAPIView(generics.CreateAPIView):
                 {"artisan_id": "This artisan is currently not available. "
                                f"Status: {artisan.get_is_available_display()}"}
             )
+
+        # Check FREE tier booking limit
+        artisan_tier = get_effective_tier(artisan)
+        booking_limit = get_monthly_booking_limit(artisan_tier)
+        if booking_limit is not None:
+            current_bookings = get_current_month_booking_count(artisan)
+            if current_bookings >= booking_limit:
+                raise DRFValidationError(
+                    {"artisan_id": f"This artisan has reached their monthly booking limit "
+                                   f"({booking_limit} bookings on the Free plan). "
+                                   "Please try another artisan."}
+                )
 
         # Inject the artisan into the request data so the serializer can use it
         data = request.data.copy()

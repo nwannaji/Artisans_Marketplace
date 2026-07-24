@@ -819,9 +819,17 @@ class ForgotPasswordView(APIView):
                 recipient_list=[user.email],
                 fail_silently=False,
             )
+            logger.info(
+                "Password reset OTP email sent to user %s (pk=%s) at %s",
+                user.username, user.pk, user.email,
+            )
         except Exception:
-            logger.exception("Failed to send password reset OTP email to user %s", user.pk)
-            # Don't reveal the error to the client
+            logger.exception(
+                "Failed to send password reset OTP email to user %s (pk=%s) at %s — "
+                "check EMAIL_* settings in Django configuration",
+                user.username, user.pk, user.email,
+            )
+            # Don't reveal the error to the client to avoid account enumeration
             return Response({'message': generic_message}, status=status.HTTP_200_OK)
 
         return Response({'message': generic_message}, status=status.HTTP_200_OK)
@@ -1038,4 +1046,27 @@ class VerificationDocumentDeleteView(APIView):
         return Response({
             'message': 'Document deleted successfully.',
             'remaining_documents': len(current_docs),
+        })
+
+
+class UserOnlineStatusView(APIView):
+    """Return whether a given user is currently online.
+
+    A user is considered online if their last_active timestamp is
+    within the last 3 minutes.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        from django.shortcuts import get_object_or_404
+        from datetime import timedelta
+
+        user = get_object_or_404(User, pk=user_id)
+        is_online = False
+        if user.last_active:
+            is_online = user.last_active >= timezone.now() - timedelta(minutes=3)
+        return Response({
+            'user_id': user.id,
+            'is_online': is_online,
+            'last_active': user.last_active,
         })

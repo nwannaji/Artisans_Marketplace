@@ -39,4 +39,10 @@ urlpatterns = [
     path('chats/<int:pk>/', views.conversation_detail, name='conversation_detail'),
     path('chats/<int:conversation_id>/send/', views.admin_send_message, name='admin_send_message'),
 
+    # Subscriptions
+    path('subscriptions/', views.subscription_list, name='subscription_list'),
+    path('subscriptions/create/', views.subscription_create, name='subscription_create'),
+    path('subscriptions/<int:pk>/activate/', views.subscription_activate, name='subscription_activate'),
+    path('subscriptions/<int:pk>/deactivate/', views.subscription_deactivate, name='subscription_deactivate'),
+
 ]

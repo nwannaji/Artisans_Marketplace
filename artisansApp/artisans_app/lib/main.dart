@@ -19,6 +19,7 @@ import 'package:artisans_app/screens/admin_chat_screen.dart';
 import 'package:artisans_app/screens/artisan_map_screen.dart';
 import 'package:artisans_app/screens/notification_screen.dart';
 import 'package:artisans_app/screens/verification_documents_screen.dart';
+import 'package:artisans_app/screens/plans_screen.dart';
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/theme/app_theme.dart';
@@ -118,6 +119,8 @@ class MyApp extends StatelessWidget {
               );
             case '/notifications':
               return MaterialPageRoute(builder: (_) => const NotificationScreen());
+            case '/plans':
+              return MaterialPageRoute(builder: (_) => const PlansScreen());
             case '/verification_documents':
               return MaterialPageRoute(builder: (_) => const VerificationDocumentsScreen());
             default:

@@ -1,7 +1,7 @@
 #!/bin/bash
 # ── Render Start Script ──────────────────────────────
-# Runs database migrations then starts gunicorn.
-# This ensures tables are created/updated on every deploy.
+# Runs database migrations then starts daphne (ASGI server).
+# Daphne serves both HTTP and WebSocket traffic.
 # ─────────────────────────────────────────────────────
 
 set -e
@@ -22,8 +22,5 @@ else
     echo "Skipping admin creation: ADMIN_USERNAME and ADMIN_PASSWORD env vars not set"
 fi
 
-echo "=== Starting gunicorn on port ${PORT:-10000} ==="
-exec gunicorn artisans_backend.wsgi:application \
-     --bind 0.0.0.0:${PORT:-10000} \
-     --workers 3 \
-     --timeout 120
+echo "=== Starting daphne on port ${PORT:-10000} ==="
+exec daphne -b 0.0.0.0 -p ${PORT:-10000} artisans_backend.asgi:application

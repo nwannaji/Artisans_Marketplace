@@ -140,6 +140,8 @@ class _DisputeScreenState extends State<DisputeScreen> with SingleTickerProvider
         title: const Text('Disputes'),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(text: 'My Disputes'),
             Tab(text: 'File Dispute'),

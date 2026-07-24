@@ -150,3 +150,28 @@ class UserDeleteConfirmForm(forms.Form):
         required=True,
     )
 
+
+class SubscriptionActivateForm(forms.Form):
+    """Form for admin to activate or change a subscription tier."""
+    tier = forms.ChoiceField(
+        choices=[('PRO', 'Pro'), ('PREMIUM', 'Premium')],
+        widget=forms.Select(attrs={'class': SELECT_CLASS}),
+        help_text='Select the subscription tier to activate.',
+    )
+    duration_days = forms.IntegerField(
+        initial=30,
+        min_value=1,
+        max_value=365,
+        widget=forms.NumberInput(attrs={'class': INPUT_CLASS, 'min': '1', 'max': '365'}),
+        help_text='Number of days until the subscription expires (typically 30 for monthly).',
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': TEXTAREA_CLASS,
+            'rows': 2,
+            'placeholder': 'Payment reference, bank transfer details, etc.',
+        }),
+        help_text='Optional notes (e.g., payment reference).',
+    )
+

@@ -3,10 +3,12 @@ import 'dart:async';
 import '../models/conversation.dart';
 import '../models/message.dart';
 import '../services/chat_api_service.dart';
+import '../services/websocket_service.dart';
 import 'base_view_model.dart';
 
 class ChatViewModel extends BaseViewModel {
   final ChatApiService _chatService = ChatApiService();
+  final WebSocketService _wsService = WebSocketService();
 
   List<Conversation> _conversations = [];
   List<Conversation> get conversations => _conversations;
@@ -17,8 +19,138 @@ class ChatViewModel extends BaseViewModel {
   Conversation? _activeConversation;
   Conversation? get activeConversation => _activeConversation;
 
-  Timer? _pollTimer;
+  Timer? _pollTimer; // Fallback polling when WebSocket is unavailable
   int _lastMessageId = 0;
+
+  // WebSocket state tracking
+  bool _useWebSocket = false;
+  bool get isConnected => _wsService.isConnected;
+
+  // Online status tracking
+  final Set<int> _onlineUsers = {};
+  bool isUserOnline(int userId) => _onlineUsers.contains(userId);
+
+  // Typing indicator
+  bool _isOtherUserTyping = false;
+  bool get isOtherUserTyping => _isOtherUserTyping;
+  Timer? _typingTimer;
+
+  // WebSocket subscriptions
+  StreamSubscription? _messageSubscription;
+  StreamSubscription? _connectionSubscription;
+  StreamSubscription? _onlineSubscription;
+  StreamSubscription? _offlineSubscription;
+  StreamSubscription? _readReceiptSubscription;
+  StreamSubscription? _typingSubscription;
+
+  ChatViewModel() {
+    _initWebSocket();
+  }
+
+  void _initWebSocket() {
+    // Listen for connection state changes
+    _connectionSubscription = _wsService.connectionState.listen((state) {
+      if (state == WebSocketState.connected) {
+        _useWebSocket = true;
+        stopPolling(); // Stop REST polling when WS is connected
+        // Re-join the active conversation if we were in one
+        if (_activeConversation != null) {
+          _wsService.joinConversation(_activeConversation!.id);
+        }
+      } else {
+        _useWebSocket = false;
+        // Only start polling if we have an active conversation
+        if (_activeConversation != null) {
+          startPolling();
+        }
+      }
+    });
+
+    // Listen for incoming messages
+    _messageSubscription = _wsService.messages.listen(_onWebSocketMessage);
+
+    // Listen for online/offline status
+    _onlineSubscription = _wsService.onlineStatus.listen((userId) {
+      _onlineUsers.add(userId);
+      notifyListeners();
+    });
+
+    _offlineSubscription = _wsService.offlineStatus.listen((userId) {
+      _onlineUsers.remove(userId);
+      notifyListeners();
+    });
+
+    // Listen for read receipts
+    _readReceiptSubscription = _wsService.readReceipts.listen((data) {
+      final conversationId = data['conversation_id'] as int?;
+      if (conversationId != null && conversationId == _activeConversation?.id) {
+        // Mark messages as read in local state
+        for (int i = 0; i < _messages.length; i++) {
+          if (!_messages[i].isRead) {
+            _messages[i] = ChatMessage(
+              id: _messages[i].id,
+              conversationId: _messages[i].conversationId,
+              senderId: _messages[i].senderId,
+              senderUsername: _messages[i].senderUsername,
+              message: _messages[i].message,
+              messageType: _messages[i].messageType,
+              audioUrl: _messages[i].audioUrl,
+              audioDuration: _messages[i].audioDuration,
+              latitude: _messages[i].latitude,
+              longitude: _messages[i].longitude,
+              locationLabel: _messages[i].locationLabel,
+              isAdminMessage: _messages[i].isAdminMessage,
+              timestamp: _messages[i].timestamp,
+              isRead: true,
+            );
+          }
+        }
+        notifyListeners();
+      }
+    });
+
+    // Listen for typing indicators
+    _typingSubscription = _wsService.typing.listen((data) {
+      final convId = data['conversation_id'] as int?;
+      if (convId == _activeConversation?.id) {
+        _isOtherUserTyping = true;
+        notifyListeners();
+        _typingTimer?.cancel();
+        _typingTimer = Timer(const Duration(seconds: 3), () {
+          _isOtherUserTyping = false;
+          notifyListeners();
+        });
+      }
+    });
+
+    // Attempt to connect
+    _wsService.connect();
+  }
+
+  void _onWebSocketMessage(Map<String, dynamic> data) {
+    try {
+      final message = ChatMessage.fromJson(data);
+      if (message.conversationId == _activeConversation?.id) {
+        // Avoid duplicates (we may have already added from REST send)
+        if (!_messages.any((m) => m.id == message.id)) {
+          _messages.add(message);
+          if (message.id > _lastMessageId) {
+            _lastMessageId = message.id;
+          }
+          notifyListeners();
+        }
+      }
+      // Refresh conversations list to update last_message and unread_count
+      loadConversations();
+    } catch (_) {
+      // Fallback: reload from REST
+      if (_activeConversation != null) {
+        _pollNewMessages();
+      }
+    }
+  }
+
+  // ── Conversation & Message Methods ─────────────────────────
 
   /// Load all conversations for the current user
   Future<void> loadConversations() async {
@@ -52,12 +184,24 @@ class ChatViewModel extends BaseViewModel {
     }
   }
 
-  /// Select a conversation and load its messages
+  /// Select a conversation, load messages, and join the WebSocket room
   Future<void> selectConversation(Conversation conversation) async {
+    // Leave previous conversation's WebSocket room
+    if (_activeConversation != null) {
+      _wsService.leaveConversation(_activeConversation!.id);
+    }
+
     _activeConversation = conversation;
     _messages = [];
     _lastMessageId = 0;
+    _isOtherUserTyping = false;
     notifyListeners();
+
+    // Join the new conversation's WebSocket room
+    _wsService.joinConversation(conversation.id);
+
+    // Send a read receipt to mark all messages as read
+    _wsService.sendReadReceipt(conversation.id);
 
     try {
       _messages = await _chatService.getMessages(conversation.id);
@@ -65,12 +209,17 @@ class ChatViewModel extends BaseViewModel {
         _lastMessageId = _messages.last.id;
       }
       notifyListeners();
+
+      // Only start polling if WS is NOT connected
+      if (!_useWebSocket) {
+        startPolling();
+      }
     } catch (e) {
       setError(e.toString());
     }
   }
 
-  /// Send a message in the active conversation
+  /// Send a text message in the active conversation
   Future<void> sendMessage(String text) async {
     if (_activeConversation == null || text.trim().isEmpty) return;
 
@@ -79,15 +228,27 @@ class ChatViewModel extends BaseViewModel {
         _activeConversation!.id,
         text.trim(),
       );
-      _messages.add(message);
-      _lastMessageId = message.id;
-      notifyListeners();
+      // Add to local list if not already added via WebSocket
+      if (!_messages.any((m) => m.id == message.id)) {
+        _messages.add(message);
+        _lastMessageId = message.id;
+        notifyListeners();
+      }
     } catch (e) {
       setError(e.toString());
     }
   }
 
-  /// Start polling for new messages (replaces Firestore real-time streams)
+  /// Send a typing indicator via WebSocket
+  void sendTypingIndicator() {
+    if (_activeConversation != null) {
+      _wsService.sendTyping(_activeConversation!.id);
+    }
+  }
+
+  // ── Polling (fallback) ──────────────────────────────────────
+
+  /// Start polling for new messages (used when WebSocket is unavailable)
   void startPolling({Duration interval = const Duration(seconds: 3)}) {
     stopPolling();
     _pollTimer = Timer.periodic(interval, (_) => _pollNewMessages());
@@ -117,6 +278,14 @@ class ChatViewModel extends BaseViewModel {
   @override
   void dispose() {
     stopPolling();
+    _typingTimer?.cancel();
+    _messageSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _onlineSubscription?.cancel();
+    _offlineSubscription?.cancel();
+    _readReceiptSubscription?.cancel();
+    _typingSubscription?.cancel();
+    // Note: do NOT dispose _wsService; it's a singleton
     super.dispose();
   }
 }

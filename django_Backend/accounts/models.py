@@ -27,6 +27,10 @@ class User(AbstractUser):
         default=False,
         help_text="For artisans/admins, must be approved by admin"
     )
+    last_active = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Last time the user made an authenticated request. Used for online presence."
+    )
     objects = CustomUserManager()
 
     def get_full_name_or_username(self):

@@ -11,6 +11,7 @@ from accounts.serializers import ArtisanProfileSerializer, ArtisanAdminProfileSe
 from .filters import ArtisanFilter
 from .models_portfolio import PortfolioImage
 from .serializers import PortfolioImageSerializer
+from subscriptions.utils import annotate_tier_priority
 
 
 class ArtisanProfileCreateAPIView(generics.CreateAPIView):
@@ -47,8 +48,12 @@ class ArtisanListAPIView(generics.ListAPIView):
         By default, only return artisans whose user account is active
         (i.e. approved by admin). Admin users can pass ?is_active=false
         (or ?is_active=all) to also see pending/inactive artisans.
+
+        Results are ordered by subscription tier priority (Premium first,
+        then Pro, then Free) and then by rating, so subscribed artisans
+        appear higher in search results.
         """
-        qs = ArtisanProfile.objects.select_related('user').all()
+        qs = ArtisanProfile.objects.select_related('user', 'subscription').all()
 
         is_active_param = self.request.query_params.get('is_active', 'true')
 
@@ -63,6 +68,11 @@ class ArtisanListAPIView(generics.ListAPIView):
         # computation is meaningful when lat/lng params are provided.
         if self.request.query_params.get('lat') and self.request.query_params.get('lng'):
             qs = qs.exclude(latitude=0, longitude=0)
+
+        # Boost subscribed artisans in search results:
+        # Premium (priority 0) > Pro (priority 1) > Free (priority 2)
+        qs = annotate_tier_priority(qs)
+        qs = qs.order_by('tier_priority', '-rating', '-jobs_completed')
 
         return qs
 

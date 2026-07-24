@@ -11,8 +11,8 @@ class ChatInline(admin.TabularInline):
 
 
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'client', 'artisan', 'admin', 'conversation_type', 'is_active', 'created_at')
-    list_filter = ('conversation_type', 'is_active', 'created_at')
+    list_display = ('id', 'client', 'artisan', 'admin', 'conversation_type', 'message_ttl_days', 'is_active', 'created_at')
+    list_filter = ('conversation_type', 'is_active', 'message_ttl_days', 'created_at')
     search_fields = ('client__username', 'artisan__username')
     readonly_fields = ('created_at',)
     inlines = [ChatInline]

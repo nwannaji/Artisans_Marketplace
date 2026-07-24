@@ -123,6 +123,8 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
     review_count = serializers.SerializerMethodField()
+    subscription_tier = serializers.SerializerMethodField()
+    subscription_badge = serializers.SerializerMethodField()
 
     class Meta:
         model = ArtisanProfile
@@ -131,13 +133,27 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
             'profession', 'skills', 'hourly_rate', 'rating',
             'jobs_completed', 'location', 'latitude', 'longitude',
             'profile_picture', 'is_available', 'bio',
-            'review_count', 'created_at', 'updated_at',
+            'review_count', 'subscription_tier', 'subscription_badge',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ('created_at', 'updated_at', 'user', 'is_verified', 'rating', 'jobs_completed')
 
     def get_review_count(self, obj):
         from reviews.models import Review
         return Review.objects.filter(artisan=obj).count()
+
+    def get_subscription_tier(self, obj):
+        from subscriptions.utils import get_effective_tier
+        return get_effective_tier(obj)
+
+    def get_subscription_badge(self, obj):
+        from subscriptions.utils import get_effective_tier
+        tier = get_effective_tier(obj)
+        if tier == 'PREMIUM':
+            return 'Premium'
+        elif tier == 'PRO':
+            return 'Pro'
+        return None
 
     def validate_skills(self, value):
         if not isinstance(value, list):
@@ -155,6 +171,8 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
 class ArtisanAdminProfileSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
+    subscription_tier = serializers.SerializerMethodField()
+    subscription_badge = serializers.SerializerMethodField()
 
     class Meta:
         model = ArtisanProfile
@@ -163,9 +181,23 @@ class ArtisanAdminProfileSerializer(serializers.ModelSerializer):
             'profession', 'skills', 'hourly_rate', 'rating',
             'jobs_completed', 'location', 'latitude', 'longitude',
             'profile_picture', 'is_verified', 'is_available', 'bio',
-            'verification_documents', 'created_at', 'updated_at',
+            'verification_documents', 'subscription_tier', 'subscription_badge',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ('created_at', 'updated_at', 'user')
+
+    def get_subscription_tier(self, obj):
+        from subscriptions.utils import get_effective_tier
+        return get_effective_tier(obj)
+
+    def get_subscription_badge(self, obj):
+        from subscriptions.utils import get_effective_tier
+        tier = get_effective_tier(obj)
+        if tier == 'PREMIUM':
+            return 'Premium'
+        elif tier == 'PRO':
+            return 'Pro'
+        return None
 
 
 # Artisan self-service profile update serializer
