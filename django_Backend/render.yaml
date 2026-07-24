@@ -22,7 +22,7 @@ services:
       - key: DEBUG
         value: "False"
       - key: ALLOWED_HOSTS
-        value: "fixit-api.onrender.com"
+        value: "fixit-api-lsyh.onrender.com,fixit-api.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://fixit.onrender.com"
       # ── Email / SMTP (for password reset OTPs) ──
