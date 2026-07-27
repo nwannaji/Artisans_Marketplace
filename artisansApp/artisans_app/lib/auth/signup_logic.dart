@@ -26,10 +26,18 @@ class _SignupPageState extends State<SignupPage> {
   bool get _isArtisan => selectedRole == 'ARTISAN';
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 8) return 'Password must be at least 8 characters';
-    if (!value.contains(RegExp(r'[A-Za-z]'))) return 'Password must contain at least one letter';
-    if (!value.contains(RegExp(r'[0-9]'))) return 'Password must contain at least one digit';
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!value.contains(RegExp(r'[A-Za-z]'))) {
+      return 'Password must contain at least one letter';
+    }
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one digit';
+    }
     return null;
   }
 
@@ -67,12 +75,15 @@ class _SignupPageState extends State<SignupPage> {
             backgroundColor: Colors.orange,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/login');
+        // Clear navigation stack — user is starting fresh on login
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       } else {
         // signUp returned null — show error from ViewModel
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authViewModel.errorMessage ?? 'Signup failed. Please try again.'),
+            content: Text(
+              authViewModel.errorMessage ?? 'Signup failed. Please try again.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -82,7 +93,9 @@ class _SignupPageState extends State<SignupPage> {
         // SECURITY: Don't expose raw exception details to the user
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Signup failed. Please check your details and try again.'),
+            content: Text(
+              'Signup failed. Please check your details and try again.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -95,9 +108,7 @@ class _SignupPageState extends State<SignupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Sign Up"),
-      ),
+      appBar: AppBar(title: const Text("SIGN UP")),
       body: ScatteredBackground(
         imageCount: 20,
         child: SingleChildScrollView(
@@ -109,8 +120,12 @@ class _SignupPageState extends State<SignupPage> {
                 const SizedBox(height: 8),
                 CircleAvatar(
                   radius: 56,
-                  backgroundImage: const AssetImage('assets/images/artisan_persona.png'),
-                  backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                  backgroundImage: const AssetImage(
+                    'assets/images/artisan_persona.png',
+                  ),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).primaryColor.withValues(alpha: 0.1),
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
@@ -120,8 +135,11 @@ class _SignupPageState extends State<SignupPage> {
                     prefixIcon: Icon(Icons.person),
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value == null || value.trim().isEmpty ? 'Username is required' : null,
+                  validator:
+                      (value) =>
+                          value == null || value.trim().isEmpty
+                              ? 'Username is required'
+                              : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -133,8 +151,12 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) return 'Email is required';
-                    if (!value.contains('@')) return 'Enter a valid email';
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Email is required';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Enter a valid email';
+                    }
                     return null;
                   },
                 ),
@@ -156,8 +178,15 @@ class _SignupPageState extends State<SignupPage> {
                     prefixIcon: const Icon(Icons.lock),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed:
+                          () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                     ),
                   ),
                   obscureText: _obscurePassword,
@@ -171,14 +200,27 @@ class _SignupPageState extends State<SignupPage> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed:
+                          () => setState(
+                            () =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                          ),
                     ),
                   ),
                   obscureText: _obscureConfirmPassword,
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Please confirm your password';
-                    if (value != passwordController.text) return 'Passwords do not match';
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm your password';
+                    }
+                    if (value != passwordController.text) {
+                      return 'Passwords do not match';
+                    }
                     return null;
                   },
                 ),
@@ -188,7 +230,10 @@ class _SignupPageState extends State<SignupPage> {
                 DropdownButtonFormField<String>(
                   value: selectedRole,
                   items: const [
-                    DropdownMenuItem(value: 'CUSTOMER', child: Text('Customer')),
+                    DropdownMenuItem(
+                      value: 'CUSTOMER',
+                      child: Text('Customer'),
+                    ),
                     DropdownMenuItem(value: 'ARTISAN', child: Text('Artisan')),
                   ],
                   onChanged: (value) {
@@ -205,35 +250,44 @@ class _SignupPageState extends State<SignupPage> {
                   TextFormField(
                     controller: professionController,
                     decoration: const InputDecoration(
-                      labelText: "What do you do? (e.g. Plumber, Electrician, Painter)",
+                      labelText:
+                          "What do you do? (e.g. Plumber, Electrician, Painter)",
                       prefixIcon: Icon(Icons.work),
                       border: OutlineInputBorder(),
                     ),
-                    validator: _isArtisan
-                        ? (value) =>
-                            value == null || value.trim().isEmpty ? 'Enter your trade or profession' : null
-                        : null,
+                    validator:
+                        _isArtisan
+                            ? (value) =>
+                                value == null || value.trim().isEmpty
+                                    ? 'Enter your trade or profession'
+                                    : null
+                            : null,
                   ),
                 ],
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                  child:
+                      isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () => signup(context),
+                            child: const Text(
+                              "Register",
+                              style: TextStyle(fontSize: 16),
                             ),
                           ),
-                          onPressed: () => signup(context),
-                          child: const Text("Register", style: TextStyle(fontSize: 16)),
-                        ),
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                  onPressed:
+                      () => Navigator.pushReplacementNamed(context, '/login'),
                   child: const Text("Already have an account? Login"),
                 ),
               ],

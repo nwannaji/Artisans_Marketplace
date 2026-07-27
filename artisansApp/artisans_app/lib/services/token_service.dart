@@ -4,6 +4,12 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenService {
+  // Singleton pattern — all ApiClient and service instances share
+  // the same TokenService, avoiding duplicate platform channel calls.
+  static final TokenService _instance = TokenService._internal();
+  factory TokenService() => _instance;
+  TokenService._internal();
+
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _userIdKey = 'user_id';

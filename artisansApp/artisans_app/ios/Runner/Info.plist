@@ -2,14 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>This app needs access to your location to show nearby artisans and provide service estimates.</string>
-<key>NSMicrophoneUsageDescription</key>
-<string>This app needs access to your microphone to record voice notes in chat.</string>
-<key>NSCameraUsageDescription</key>
-<string>This app needs access to your camera to take profile pictures and service photos.</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>This app needs access to your photo library to select profile pictures and service photos.</string>
+	<!-- Privacy descriptions (required by Apple for App Store review) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to show nearby artisans and provide service estimates.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs background location access to track artisan availability and provide real-time service updates.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to your microphone to record voice notes in chat.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to your camera to take profile pictures and service photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to select profile pictures and service photos.</string>
+
+	<!-- Background modes for location tracking and audio playback -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>audio</string>
+		<string>fetch</string>
+	</array>
+
+	<!-- Google Maps API key (injected at build time from .env) -->
+	<key>GOOGLE_MAPS_API_KEY</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
+
+	<!-- App configuration -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

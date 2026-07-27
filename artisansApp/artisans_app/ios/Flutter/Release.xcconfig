@@ -1,1 +1,5 @@
 #include "Generated.xcconfig"
+
+// Google Maps API key — set as an environment variable in CI/CD.
+// SECURITY: Never commit real API keys to source control.
+GOOGLE_MAPS_API_KEY=$(GOOGLE_MAPS_API_KEY)

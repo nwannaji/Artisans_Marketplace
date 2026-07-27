@@ -1,0 +1,42 @@
+# ===================
+# Root-level ignores
+# ===================
+
+# Security: Never commit recovery codes, credentials, or secrets
+*.recovery_code.txt
+twilio_2FA_recovery_code.txt
+
+# Environment files with secrets (but keep .env.example files)
+.env
+.env.local
+.env.production
+.env.staging
+!.env.example
+!.env.production.example
+
+# Signing keys and credentials
+*.jks
+*.keystore
+key.properties
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.pyc
+__pycache__/
+
+# Django media and static
+django_Backend/media/
+django_Backend/staticfiles/
+
+# Flutter build
+artisansApp/artisans_app/build/
+
+# Virtual environments
+django_Backend/env_artisans/

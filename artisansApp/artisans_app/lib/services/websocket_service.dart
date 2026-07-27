@@ -9,6 +9,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show min;
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -272,5 +273,4 @@ class WebSocketService {
     _reconnectTimer = Timer(delay, () => connect());
   }
 
-  int min(int a, int b) => a < b ? a : b;
 }

@@ -40,15 +40,17 @@ class _LoginPageState extends State<LoginPage> {
         } else if (user.role == UserRole.admin) {
           Navigator.pushReplacementNamed(context, '/admin_dashboard');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Unknown role")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Unknown role")));
         }
       } else {
         // AuthViewModel already set the error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authViewModel.errorMessage ?? 'Login failed. Please try again.'),
+            content: Text(
+              authViewModel.errorMessage ?? 'Login failed. Please try again.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -58,7 +60,9 @@ class _LoginPageState extends State<LoginPage> {
         // SECURITY: Don't expose raw exception details to the user
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Login failed. Please check your credentials and try again.'),
+            content: Text(
+              'Login failed. Please check your credentials and try again.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -71,9 +75,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Login"),
-      ),
+      appBar: AppBar(title: const Text("")),
       body: ScatteredBackground(
         imageCount: 20,
         child: SingleChildScrollView(
@@ -83,8 +85,12 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
               CircleAvatar(
                 radius: 56,
-                backgroundImage: const AssetImage('assets/images/Persona_Image.png'),
-                backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                backgroundImage: const AssetImage(
+                  'assets/images/Persona_Image.png',
+                ),
+                backgroundColor: Theme.of(
+                  context,
+                ).primaryColor.withValues(alpha: 0.1),
               ),
               const SizedBox(height: 24),
               TextField(
@@ -103,8 +109,15 @@ class _LoginPageState extends State<LoginPage> {
                   prefixIcon: const Icon(Icons.lock),
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed:
+                        () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                   ),
                 ),
                 obscureText: _obscurePassword,
@@ -129,18 +142,22 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                child:
+                    isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => login(context),
+                          child: const Text(
+                            "Login",
+                            style: TextStyle(fontSize: 16),
                           ),
                         ),
-                        onPressed: () => login(context),
-                        child: const Text("Login", style: TextStyle(fontSize: 16)),
-                      ),
               ),
               const SizedBox(height: 8),
               Align(
@@ -149,7 +166,9 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordScreen(),
+                      ),
                     );
                   },
                   child: const Text("Forgot Password?"),

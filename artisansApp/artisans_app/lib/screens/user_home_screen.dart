@@ -272,7 +272,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             onPressed: () async {
               await _authService.logout();
               if (!context.mounted) return;
-              Navigator.pushReplacementNamed(context, '/login');
+              // Clear the entire navigation stack so the user can't go back
+              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
           ),
         ],

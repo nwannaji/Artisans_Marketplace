@@ -327,6 +327,12 @@ class ResetPasswordSerializer(serializers.Serializer):
                 {"otp": "Invalid or expired OTP."}
             )
 
+        # Rate limit: lock the OTP after too many failed attempts
+        if otp_record.is_locked():
+            raise serializers.ValidationError(
+                {"otp": "Too many failed attempts. Please request a new OTP."}
+            )
+
         if otp_record.is_expired():
             raise serializers.ValidationError(
                 {"otp": "OTP has expired. Please request a new one."}

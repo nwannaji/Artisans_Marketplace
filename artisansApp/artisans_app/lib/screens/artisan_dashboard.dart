@@ -368,7 +368,8 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
             onPressed: () async {
               await AuthApiService().logout();
               if (context.mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
+                // Clear the entire navigation stack so the user can't go back
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
               }
             },
           ),

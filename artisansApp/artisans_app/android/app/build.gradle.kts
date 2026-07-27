@@ -25,6 +25,20 @@ android {
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Inject Google Maps API key from environment variable or .env file
+        // Priority: GOOGLE_MAPS_API_KEY env var > .env file value > empty fallback
+        val mapsKey = System.getenv("GOOGLE_MAPS_API_KEY")
+            ?: run {
+                val envFile = rootProject.file("../.env")
+                if (envFile.exists()) {
+                    envFile.readLines()
+                        .firstOrNull { it.startsWith("GOOGLE_MAPS_API_KEY=") }
+                        ?.substringAfter("=")
+                        ?.trim()
+                } else null
+            } ?: ""
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = mapsKey
     }
 
     compileOptions {

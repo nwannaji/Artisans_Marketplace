@@ -1,10 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-        <!-- Required for accessing location (foreground only — while using the app) -->
+    <!-- Location permissions (foreground only — while using the app) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-   <uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- Network permissions -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- Audio recording permission for voice notes -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- Foreground service permission for background location tracking -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+
+    <!-- Notification permission for Android 13+ (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- External storage permissions for image/file picking (Android 12 and below) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
         android:label="FixIt App"
@@ -13,11 +30,12 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true">
 
-        <!-- SECURITY: Google Maps API key — restrict this key in Google Cloud Console
-             to your app's package name and SHA-1 fingerprint. Never commit unrestricted keys. -->
+        <!-- Google Maps API key — loaded from .env at build time via android/app/build.gradle.kts
+             Do NOT hardcode API keys here. The value is injected from the GOOGLE_MAPS_API_KEY
+             environment variable (or .env file) during the build process. -->
         <meta-data
-        android:name="com.google.android.geo.API_KEY"
-         android:value="AIzaSyDuoC6_48bb-iL-jrH6qvznprb_OBA2Dmo"/>
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${GOOGLE_MAPS_API_KEY}" />
 
         <activity
             android:name=".MainActivity"

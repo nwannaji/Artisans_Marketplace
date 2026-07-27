@@ -159,7 +159,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _logout() async {
     await AuthApiService().logout();
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
+      // Clear the entire navigation stack so the user can't go back
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 

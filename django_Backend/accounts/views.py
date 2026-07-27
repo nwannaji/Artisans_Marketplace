@@ -1,5 +1,7 @@
 import logging
-import random
+import secrets
+
+from django.conf import settings
 
 from django.contrib.auth import login
 from django.contrib.auth.password_validation import validate_password
@@ -795,7 +797,7 @@ class ForgotPasswordView(APIView):
         ).delete()
 
         # Generate a 6-digit OTP
-        otp_code = f"{random.randint(100000, 999999)}"
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
         expires_at = timezone.now() + timezone.timedelta(minutes=15)
 
         OTPVerification.objects.create(
@@ -840,13 +842,36 @@ class ResetPasswordView(APIView):
 
     Accepts `otp`, `new_password`, `new_password2`. Validates the OTP,
     checks it hasn't expired, and resets the user's password.
+
+    Rate limits OTP verification: after 5 failed attempts, the OTP is
+    locked and the user must request a new one.
     """
     permission_classes = [AllowAny]
     serializer_class = ResetPasswordSerializer
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            # If the error is about an invalid OTP (not expired/locked),
+            # increment the attempt counter on any matching OTP record.
+            otp_value = request.data.get('otp', '')
+            if otp_value:
+                try:
+                    otp_record = OTPVerification.objects.get(
+                        otp=otp_value,
+                        purpose=OTPVerification.Purpose.PASSWORD_RESET,
+                        is_used=False,
+                    )
+                    otp_record.attempts += 1
+                    otp_record.save(update_fields=['attempts'])
+                    logger.warning(
+                        "Failed OTP verification attempt %d for user %s",
+                        otp_record.attempts,
+                        otp_record.user.username,
+                    )
+                except OTPVerification.DoesNotExist:
+                    pass  # No matching OTP — can't increment
+            raise serializers.ValidationError(serializer.errors)
 
         otp_record = serializer.validated_data['otp_record']
         user = serializer.validated_data['user']

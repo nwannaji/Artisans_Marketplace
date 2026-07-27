@@ -119,6 +119,10 @@ class OTPVerification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
+    attempts = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of failed verification attempts. Locked after 5 failures."
+    )
 
     class Meta:
         indexes = [
@@ -131,8 +135,14 @@ class OTPVerification(models.Model):
             self.expires_at = timezone.now() + timedelta(minutes=15)
         super().save(*args, **kwargs)
 
+    MAX_ATTEMPTS = 5
+
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+    def is_locked(self):
+        """Return True if too many failed verification attempts."""
+        return self.attempts >= self.MAX_ATTEMPTS
 
     def __str__(self):
         return f"OTP for {self.user.username} ({self.get_purpose_display()})"

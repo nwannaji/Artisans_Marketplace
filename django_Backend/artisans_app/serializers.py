@@ -33,7 +33,13 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ArtisanProfile
-        fields = '__all__'
+        fields = [
+            'id', 'user', 'user_username', 'user_is_active',
+            'profession', 'skills', 'hourly_rate', 'rating', 'review_count',
+            'jobs_completed', 'location', 'latitude', 'longitude',
+            'profile_picture', 'bio', 'is_verified', 'is_available',
+            'verification_documents', 'created_at', 'updated_at',
+        ]
         read_only_fields = ('created_at', 'updated_at', 'user', 'is_verified')
 
     def get_review_count(self, obj):
