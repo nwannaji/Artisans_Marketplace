@@ -1,14 +1,15 @@
 import 'package:artisans_app/models/job.dart';
 import 'package:artisans_app/widgets/profile_avatar.dart';
 import 'package:artisans_app/widgets/scattered_background_image.dart';
-import 'package:artisans_app/services/auth_api_service.dart';
 import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/models/artisan.dart';
 import 'package:artisans_app/theme/app_colors.dart';
 import 'package:artisans_app/widgets/status_badge.dart';
 import 'package:artisans_app/widgets/drag_handle.dart';
+import 'package:artisans_app/viewmodels/auth_view_model.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -157,7 +158,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _logout() async {
-    await AuthApiService().logout();
+    final authViewModel = context.read<AuthViewModel>();
+    await authViewModel.signOut();
     if (mounted) {
       // Clear the entire navigation stack so the user can't go back
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
@@ -411,7 +413,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Admin Dashboard'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
+          Consumer<AuthViewModel>(
+            builder: (context, auth, _) => auth.currentUser != null
+                ? IconButton(icon: const Icon(Icons.logout), onPressed: _logout)
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
       body: ScatteredBackground(

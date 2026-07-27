@@ -39,11 +39,47 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
   // Single shared AuthViewModel instance used by both Provider and initial routing
   static final AuthViewModel _authViewModel = AuthViewModel();
+  bool _initialAuthCheckComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for auth state changes — redirect to login when user signs out
+    // or session expires (currentUser becomes null while app is running)
+    _authViewModel.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    _authViewModel.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    // Don't redirect during initial auth check — only react to sign-out/expiry
+    // after the app has finished its startup routing
+    if (!_initialAuthCheckComplete) return;
+    if (_authViewModel.currentUser == null && _authViewModel.state == AuthState.idle) {
+      // User signed out or session expired — navigate to login
+      final context = navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      }
+    }
+  }
+
+  // GlobalKey for accessing the navigator from the listener
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +91,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'FixIt App',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme(),
@@ -147,6 +184,8 @@ class MyApp extends StatelessWidget {
   /// Routes directly to the role-appropriate screen, skipping the persona picker.
   Future<Widget> _getInitialScreen() async {
     final isAuth = await _authViewModel.checkAuth();
+    // Mark initial auth check as complete so the listener can start reacting
+    _initialAuthCheckComplete = true;
     if (isAuth && _authViewModel.currentUser != null) {
       final role = _authViewModel.currentUser!.role;
       if (role == UserRole.customer) {

@@ -14,6 +14,7 @@ import 'package:artisans_app/services/subscription_api_service.dart';
 import 'package:artisans_app/models/subscription.dart';
 import 'package:artisans_app/services/location_service.dart';
 import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/viewmodels/auth_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -363,15 +364,18 @@ class _ArtisanDashboardScreenState extends State<ArtisanDashboardScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthApiService().logout();
-              if (context.mounted) {
-                // Clear the entire navigation stack so the user can't go back
-                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-              }
-            },
+          Consumer<AuthViewModel>(
+            builder: (context, auth, _) => auth.currentUser != null
+                ? IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      await auth.signOut();
+                      if (context.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                      }
+                    },
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),

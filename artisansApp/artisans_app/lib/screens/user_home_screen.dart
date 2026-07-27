@@ -8,9 +8,11 @@ import 'package:artisans_app/services/booking_api_service.dart';
 import 'package:artisans_app/services/artisan_api_service.dart';
 import 'package:artisans_app/services/location_service.dart';
 import 'package:artisans_app/theme/app_colors.dart';
+import 'package:artisans_app/viewmodels/auth_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:logger/logger.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -32,7 +34,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final searchController = TextEditingController();
   final Logger logger = Logger();
   final ArtisanApiService _artisanService = ArtisanApiService();
-  final AuthApiService _authService = AuthApiService();
   final BookingApiService _bookingService = BookingApiService();
   final LocationService _locationService = LocationService();
 
@@ -267,14 +268,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             icon: const Icon(Icons.refresh),
             onPressed: _initializePage,
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await _authService.logout();
-              if (!context.mounted) return;
-              // Clear the entire navigation stack so the user can't go back
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            },
+          Consumer<AuthViewModel>(
+            builder: (context, auth, _) => auth.currentUser != null
+                ? IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      await auth.signOut();
+                      if (!context.mounted) return;
+                      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                    },
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
         bottom: TabBar(
