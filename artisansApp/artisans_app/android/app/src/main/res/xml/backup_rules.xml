@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full backup rules for FixIt App.
+     Google Play requires explicit data backup declarations.
+     We exclude sensitive data (auth tokens, shared prefs with credentials)
+     and include only user-visible content. -->
+<full-backup-content>
+    <!-- Exclude shared preferences that may contain auth tokens or credentials -->
+    <exclude domain="sharedpref" path="." />
+    <!-- Exclude internal database files (contain user data, not for backup) -->
+    <exclude domain="database" path="." />
+    <!-- Exclude cache files -->
+    <exclude domain="cache" path="." />
+    <!-- Exclude external files (profile pics, etc.) — user can re-download -->
+    <exclude domain="external" path="." />
+</full-backup-content>

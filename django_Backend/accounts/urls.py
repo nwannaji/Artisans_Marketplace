@@ -17,6 +17,8 @@ from .views import (
     VerificationDocumentUploadView,
     VerificationDocumentDeleteView,
     UserOnlineStatusView,
+    EmailVerifyView,
+    ResendEmailVerifyView,
 )
 app_name = 'accounts'
 
@@ -35,6 +37,8 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
+    path('verify-email/', EmailVerifyView.as_view(), name='verify-email'),
+    path('resend-verify-email/', ResendEmailVerifyView.as_view(), name='resend-verify-email'),
     path('users/<int:pk>/activate/', UserActivateAPIView.as_view(), name='user-activate'),
     path('users/<int:user_id>/online/', UserOnlineStatusView.as_view(), name='user-online-status'),
     path('customers/', CustomerListAPIView.as_view(), name='customer-list'),

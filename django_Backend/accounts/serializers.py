@@ -1,4 +1,4 @@
-import random
+import secrets
 
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -83,7 +83,8 @@ class UserLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid credentials')
 
         if user_obj.role != role:
-            raise serializers.ValidationError('Role mismatch')
+            # SECURITY: Use generic message to avoid revealing that the username exists
+            raise serializers.ValidationError('Invalid credentials')
 
         return {
             'user': user_obj,
@@ -315,14 +316,22 @@ class ResetPasswordSerializer(serializers.Serializer):
                 {"new_password2": "Passwords do not match."}
             )
 
-        # Look up a valid (unused, not expired) OTP record
-        try:
-            otp_record = OTPVerification.objects.get(
-                otp=otp,
-                purpose=OTPVerification.Purpose.PASSWORD_RESET,
-                is_used=False,
-            )
-        except OTPVerification.DoesNotExist:
+        # SECURITY: Use timing-safe OTP comparison.
+        # Instead of querying by exact OTP (vulnerable to timing attacks),
+        # look up all unused OTP records for this purpose and compare
+        # using secrets.compare_digest to prevent timing-based enumeration.
+        otp_records = OTPVerification.objects.filter(
+            purpose=OTPVerification.Purpose.PASSWORD_RESET,
+            is_used=False,
+        ).select_related('user')
+
+        otp_record = None
+        for record in otp_records:
+            if secrets.compare_digest(record.otp, otp):
+                otp_record = record
+                break
+
+        if otp_record is None:
             raise serializers.ValidationError(
                 {"otp": "Invalid or expired OTP."}
             )
@@ -349,4 +358,51 @@ class ResetPasswordSerializer(serializers.Serializer):
 
         attrs['otp_record'] = otp_record
         attrs['user'] = user
+        return attrs
+
+
+# Email Verification Serializer
+class EmailVerifySerializer(serializers.Serializer):
+    """Verify a 6-digit OTP sent to the user's email during registration.
+
+    Uses timing-safe comparison to prevent timing attacks on the OTP code.
+    """
+    otp = serializers.CharField(
+        max_length=6,
+        min_length=6,
+        help_text="The 6-digit OTP sent to your email for verification."
+    )
+
+    def validate(self, attrs):
+        otp = attrs.get('otp')
+
+        # SECURITY: Use timing-safe OTP comparison (same as password reset)
+        otp_records = OTPVerification.objects.filter(
+            purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+            is_used=False,
+        ).select_related('user')
+
+        otp_record = None
+        for record in otp_records:
+            if secrets.compare_digest(record.otp, otp):
+                otp_record = record
+                break
+
+        if otp_record is None:
+            raise serializers.ValidationError(
+                {"otp": "Invalid or expired verification code."}
+            )
+
+        if otp_record.is_locked():
+            raise serializers.ValidationError(
+                {"otp": "Too many failed attempts. Please request a new verification code."}
+            )
+
+        if otp_record.is_expired():
+            raise serializers.ValidationError(
+                {"otp": "Verification code has expired. Please request a new one."}
+            )
+
+        attrs['otp_record'] = otp_record
+        attrs['user'] = otp_record.user
         return attrs

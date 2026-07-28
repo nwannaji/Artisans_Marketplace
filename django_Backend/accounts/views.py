@@ -19,7 +19,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 
 from .permissions import IsAdminRole
-from .throttling import LoginRateThrottle, RegisterRateThrottle, PasswordChangeRateThrottle, PasswordResetRateThrottle
+from .throttling import LoginRateThrottle, RegisterRateThrottle, PasswordChangeRateThrottle, PasswordResetRateThrottle, OTPVerifyRateThrottle, EmailVerifyRateThrottle, ResendEmailVerifyRateThrottle
 
 from .serializers import (
     UserRegistrationSerializer,
@@ -28,6 +28,7 @@ from .serializers import (
     ArtisanProfileSelfUpdateSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
+    EmailVerifySerializer,
 )
 from .models import User, ArtisanProfile, CustomerProfile, OTPVerification
 from bookings.models import Job
@@ -60,6 +61,51 @@ class UserRegistrationAPIView(generics.CreateAPIView):
             token_serializer = UserLoginSerializer()
             tokens = token_serializer.get_tokens_for_user(user)
             response_data['tokens'] = tokens
+            response_data['is_verified'] = user.is_verified
+
+            # Send email verification OTP for new customers
+            # (Apple App Store requires verified email for account-based apps)
+            if not user.is_verified:
+                # Delete any existing verification OTPs for this user
+                OTPVerification.objects.filter(
+                    user=user,
+                    purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+                ).delete()
+
+                otp_code = f"{secrets.randbelow(900000) + 100000}"
+                expires_at = timezone.now() + timezone.timedelta(minutes=10)
+
+                OTPVerification.objects.create(
+                    user=user,
+                    otp=otp_code,
+                    purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+                    expires_at=expires_at,
+                )
+
+                try:
+                    send_mail(
+                        subject="Verify Your FixIt Account",
+                        message=(
+                            f"Hello {user.username},\n\n"
+                            f"Welcome to FixIt! Your email verification code is: {otp_code}\n\n"
+                            f"This code expires in 10 minutes.\n"
+                            f"Enter this code in the app to verify your email address."
+                        ),
+                        from_email=None,  # Uses DEFAULT_FROM_EMAIL from settings
+                        recipient_list=[user.email],
+                        fail_silently=False,
+                    )
+                    logger.info(
+                        "Email verification OTP sent to new customer %s (pk=%s) at %s",
+                        user.username, user.pk, user.email,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to send email verification OTP to new customer %s (pk=%s) at %s",
+                        user.username, user.pk, user.email,
+                    )
+                    # Don't fail registration — user can request a new verification code
+
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         response_data['message'] = 'Account created successfully. Awaiting admin approval.'
@@ -847,6 +893,7 @@ class ResetPasswordView(APIView):
     locked and the user must request a new one.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [OTPVerifyRateThrottle]
     serializer_class = ResetPasswordSerializer
 
     def post(self, request):
@@ -1095,3 +1142,135 @@ class UserOnlineStatusView(APIView):
             'is_online': is_online,
             'last_active': user.last_active,
         })
+
+
+class EmailVerifyView(APIView):
+    """Verify a user's email address using a 6-digit OTP.
+
+    POST /api/auth/verify-email/ with {"otp": "123456"}
+
+    After registration, customers receive an OTP to their email.
+    Verifying the email sets `user.is_verified = True`.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [OTPVerifyRateThrottle]
+    serializer_class = EmailVerifySerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if not serializer.is_valid():
+            # Increment attempt counter on any matching OTP record
+            otp_value = request.data.get('otp', '')
+            if otp_value:
+                for otp_record in OTPVerification.objects.filter(
+                    purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+                    is_used=False,
+                ):
+                    otp_record.attempts += 1
+                    otp_record.save(update_fields=['attempts'])
+                    logger.warning(
+                        "Failed email verification attempt %d for user %s",
+                        otp_record.attempts,
+                        otp_record.user.username,
+                    )
+                    break  # Only increment one record per attempt
+            raise drf_serializers.ValidationError(serializer.errors)
+
+        otp_record = serializer.validated_data['otp_record']
+        user = serializer.validated_data['user']
+
+        # Mark the user as verified
+        user.is_verified = True
+        user.save(update_fields=['is_verified'])
+
+        # Mark OTP as used
+        otp_record.is_used = True
+        otp_record.save(update_fields=['is_used'])
+
+        logger.info(
+            "Email verified successfully for user %s (pk=%s)",
+            user.username, user.pk,
+        )
+
+        return Response({
+            'message': 'Email verified successfully.',
+            'is_verified': True,
+        }, status=status.HTTP_200_OK)
+
+
+class ResendEmailVerifyView(APIView):
+    """Resend the email verification OTP.
+
+    POST /api/auth/resend-verify-email/ with {"email": "user@example.com"}
+
+    Always returns the same generic message to avoid account enumeration.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ResendEmailVerifyRateThrottle]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+
+        # Always return the same generic message to avoid enumeration
+        generic_message = (
+            "If an account with that email exists and is not yet verified, "
+            "a new verification code has been sent."
+        )
+
+        if not email:
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        # Only send verification if the user is not already verified
+        if user.is_verified:
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        # Delete any existing email verification OTPs for this user
+        OTPVerification.objects.filter(
+            user=user,
+            purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+        ).delete()
+
+        # Generate a new 6-digit OTP
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
+        expires_at = timezone.now() + timezone.timedelta(minutes=10)
+
+        OTPVerification.objects.create(
+            user=user,
+            otp=otp_code,
+            purpose=OTPVerification.Purpose.EMAIL_VERIFICATION,
+            expires_at=expires_at,
+        )
+
+        # Send the OTP via email
+        try:
+            send_mail(
+                subject="Verify Your FixIt Account",
+                message=(
+                    f"Hello {user.username},\n\n"
+                    f"Your email verification code is: {otp_code}\n\n"
+                    f"This code expires in 10 minutes.\n"
+                    f"If you did not create an account, please ignore this email."
+                ),
+                from_email=None,  # Uses DEFAULT_FROM_EMAIL from settings
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            logger.info(
+                "Email verification OTP sent to user %s (pk=%s) at %s",
+                user.username, user.pk, user.email,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send email verification OTP to user %s (pk=%s) at %s — "
+                "check EMAIL_* settings in Django configuration",
+                user.username, user.pk, user.email,
+            )
+            # Don't reveal the error to the client
+            return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+        return Response({'message': generic_message}, status=status.HTTP_200_OK)

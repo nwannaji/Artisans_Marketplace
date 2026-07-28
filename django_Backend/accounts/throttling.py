@@ -23,3 +23,22 @@ class PasswordResetRateThrottle(AnonRateThrottle):
     """Rate limit for password reset requests: 3 per hour per IP address.
     Prevents abuse of the forgot-password endpoint."""
     rate = '3/hour'
+
+
+class OTPVerifyRateThrottle(AnonRateThrottle):
+    """Rate limit for OTP verification attempts: 10 per minute per IP address.
+    Prevents brute-force OTP guessing. Combined with per-OTP lockout
+    (5 wrong attempts = locked), this provides strong protection."""
+    rate = '10/min'
+
+
+class EmailVerifyRateThrottle(AnonRateThrottle):
+    """Rate limit for email verification requests: 5 per hour per IP address.
+    Prevents abuse of the email verification endpoint."""
+    rate = '5/hour'
+
+
+class ResendEmailVerifyRateThrottle(AnonRateThrottle):
+    """Rate limit for resending verification emails: 3 per hour per IP address.
+    Prevents spamming verification emails."""
+    rate = '3/hour'

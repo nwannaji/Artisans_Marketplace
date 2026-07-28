@@ -201,4 +201,44 @@ class AuthApiService {
   Future<Map<String, dynamic>> getMyCustomerProfile() async {
     return await _apiClient.get('/api/auth/me/customer-profile/');
   }
+
+  // --- Email verification ---
+
+  /// Verify the user's email address using a 6-digit OTP code.
+  /// Returns a map with 'message' and 'is_verified' on success.
+  Future<Map<String, dynamic>> verifyEmail({required String otp}) async {
+    return await _apiClient.post('/api/auth/verify-email/', body: {
+      'otp': otp,
+    });
+  }
+
+  /// Request a new email verification OTP to be sent.
+  /// Always returns the same generic message to avoid account enumeration.
+  Future<Map<String, dynamic>> resendEmailVerification({required String email}) async {
+    return await _apiClient.post('/api/auth/resend-verify-email/', body: {
+      'email': email,
+    });
+  }
+
+  // --- Password reset ---
+
+  /// Request a password reset OTP. Always returns a generic message.
+  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+    final body = <String, dynamic>{};
+    if (email.isNotEmpty) body['email'] = email;
+    return await _apiClient.post('/api/auth/forgot-password/', body: body);
+  }
+
+  /// Reset password using the OTP sent to the user's email.
+  Future<Map<String, dynamic>> resetPassword({
+    required String otp,
+    required String newPassword,
+    required String newPassword2,
+  }) async {
+    return await _apiClient.post('/api/auth/reset-password/', body: {
+      'otp': otp,
+      'new_password': newPassword,
+      'new_password2': newPassword2,
+    });
+  }
 }

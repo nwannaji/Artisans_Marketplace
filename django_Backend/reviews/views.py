@@ -152,9 +152,10 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     """PATCH /api/reviews/<pk>/  — update own review
     DELETE /api/reviews/<pk>/ — delete own review
     """
-    queryset = Review.objects.all()
+    queryset = Review.objects.select_related('customer', 'job')
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticated, IsReviewOwner]
+    lookup_url_kwarg = 'review_pk'
 
     def get_serializer_class(self):
         if self.request.method in ('PATCH', 'PUT'):

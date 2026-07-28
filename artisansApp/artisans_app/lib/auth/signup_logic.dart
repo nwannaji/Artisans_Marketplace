@@ -60,10 +60,18 @@ class _SignupPageState extends State<SignupPage> {
       if (!context.mounted) return;
 
       if (response != null && response.containsKey('tokens')) {
-        // Customer accounts are auto-activated — go to role-based home screen
+        // Customer accounts are auto-activated — check if email verification is needed
         final role = selectedRole;
+        final isVerified = response['is_verified'] == true;
         if (role == 'ARTISAN') {
           Navigator.pushReplacementNamed(context, '/artisan_dashboard');
+        } else if (!isVerified) {
+          // Customer needs to verify email — navigate to verification screen
+          Navigator.pushReplacementNamed(
+            context,
+            '/verify_email',
+            arguments: {'email': emailController.text.trim()},
+          );
         } else {
           Navigator.pushReplacementNamed(context, '/user_home');
         }

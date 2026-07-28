@@ -3,6 +3,7 @@ import 'package:artisans_app/auth/login_logic.dart';
 import 'package:artisans_app/auth/signup_logic.dart';
 import 'package:artisans_app/auth/forgot_password_screen.dart';
 import 'package:artisans_app/auth/reset_password_screen.dart';
+import 'package:artisans_app/auth/email_verification_screen.dart';
 import 'package:artisans_app/screens/artisan_dashboard.dart';
 import 'package:artisans_app/screens/user_home_screen.dart';
 import 'package:artisans_app/screens/home_screen.dart';
@@ -153,6 +154,12 @@ class _MyAppState extends State<MyApp> {
               final email = args?['email'] as String? ?? '';
               return MaterialPageRoute(
                 builder: (_) => ResetPasswordScreen(email: email),
+              );
+            case '/verify_email':
+              final args = settings.arguments as Map<String, dynamic>?;
+              final email = args?['email'] as String? ?? '';
+              return MaterialPageRoute(
+                builder: (_) => EmailVerificationScreen(email: email),
               );
             case '/notifications':
               return MaterialPageRoute(builder: (_) => const NotificationScreen());
