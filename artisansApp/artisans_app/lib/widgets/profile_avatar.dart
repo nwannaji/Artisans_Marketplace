@@ -3,11 +3,17 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/token_service.dart';
+
 /// A CircleAvatar that gracefully handles 404/broken image URLs.
 ///
-/// Fetches image bytes via HTTP instead of using NetworkImage, so a 404 or
-/// other network error is caught silently — no `NetworkImageLoadException`
-/// is ever thrown. Falls back to showing the user's initial letter.
+/// Fetches image bytes via HTTP (with authentication) instead of using
+/// NetworkImage, so a 404 or other network error is caught silently — no
+/// `NetworkImageLoadException` is ever thrown. Falls back to showing the
+/// user's initial letter.
+///
+/// Sending the auth token ensures profile pictures are accessible even when
+/// media files are served behind authentication (e.g. the /api/media/ endpoint).
 class ProfileAvatar extends StatefulWidget {
   final String? imageUrl;
   final String name;
@@ -42,7 +48,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   @override
   void didUpdateWidget(ProfileAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-fetch when the URL changes
+    // Re-fetch when the URL changes (including cache-busting query params)
     if (widget.imageUrl != oldWidget.imageUrl) {
       _imageBytes = null;
       _loadFailed = false;
@@ -59,7 +65,15 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     }
 
     try {
-      final response = await http.get(Uri.parse(url));
+      // Build headers — include auth token so protected media endpoints work
+      final headers = <String, String>{};
+      final tokenService = TokenService();
+      final token = await tokenService.getAccessToken();
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final response = await http.get(Uri.parse(url), headers: headers);
       if (!mounted) return;
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {

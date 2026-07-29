@@ -21,6 +21,7 @@ from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenRefreshView
 from accounts.permissions import IsAdminRole
+from accounts.views import serve_media_file
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -34,6 +35,10 @@ urlpatterns = [
     path('api/reviews/', include('reviews.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/subscriptions/', include('subscriptions.urls')),
+    # Authenticated media file serving (fallback when Cloudinary is not configured).
+    # Profile pictures and other uploaded images are served through this endpoint
+    # requiring a valid JWT token, so files are not publicly accessible.
+    path('api/media/<path:path>', serve_media_file, name='serve-media'),
     # SECURITY: Swagger UI restricted to admin users in production
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminRole]), name='schema-swagger-ui'),
     path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminRole]), name='schema'),

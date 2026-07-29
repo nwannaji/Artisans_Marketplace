@@ -76,6 +76,16 @@ INSTALLED_APPS = [
     'subscriptions',
 ]
 
+# Cloudinary storage — only add the apps when the packages are installed
+# and Cloudinary is configured.  This avoids ImportError in dev where
+# cloudinary_storage may not be installed.
+try:
+    import cloudinary_storage  # noqa: F401
+    import cloudinary  # noqa: F401
+    INSTALLED_APPS += ['cloudinary_storage', 'cloudinary']
+except ImportError:
+    pass
+
 # CORS: Configure proper origins for production
 # SECURITY: Even in development, restrict CORS to known origins rather than
 # allowing all origins. Use a whitelist of specific development origins.
@@ -196,6 +206,27 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Maximum upload size: 5MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
+
+# ── Cloudinary Media Storage ────────────────────────────────
+# In production, media files (profile pictures, portfolio images, etc.)
+# are stored in Cloudinary so they persist across Render deploys and are
+# served via Cloudinary's CDN.  In development (DEBUG=True), we keep
+# the default FileSystemStorage so files are saved locally under MEDIA_ROOT.
+#
+# Required env vars for production:
+#   CLOUD_NAME        — from Cloudinary dashboard (Account → Details)
+#   CLOUDINARY_API_KEY — from Cloudinary dashboard
+#   CLOUDINARY_API_SECRET — from Cloudinary dashboard
+#
+# If CLOUD_NAME is not set, Cloudinary storage is skipped and the app
+# falls back to local file storage + an authenticated media-serving view.
+if not DEBUG and os.getenv('CLOUD_NAME'):
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.getenv('CLOUD_NAME'),
+        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+    }
 
 # Database
 # Supports DATABASE_URL (e.g. from Neon/Supabase/Render) or individual DB_* vars

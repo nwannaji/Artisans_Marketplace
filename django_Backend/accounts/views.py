@@ -1,13 +1,15 @@
 import logging
+import os
 import secrets
+import time
 
 from django.conf import settings
-
 from django.contrib.auth import login
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.core.mail import send_mail
 from django.db.models import Count, Avg
+from django.http import HttpResponse, HttpResponseNotFound, HttpResponseForbidden
 from django.utils import timezone
 from rest_framework import generics, permissions, status, serializers as drf_serializers
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -34,6 +36,25 @@ from .models import User, ArtisanProfile, CustomerProfile, OTPVerification
 from bookings.models import Job
 
 logger = logging.getLogger(__name__)
+
+
+def _profile_picture_url(field):
+    """Return the URL for an ImageField with a cache-busting timestamp.
+
+    Appends ``?t=<updated_at_epoch>`` so clients fetch a fresh copy
+    whenever the picture changes.  Returns ``None`` when the field is empty.
+    """
+    if not field:
+        return None
+    base_url = field.url
+    # Use the file's last-modified time if available, otherwise current time
+    try:
+        mtime = os.path.getmtime(field.path)
+        ts = int(mtime)
+    except (OSError, ValueError):
+        ts = int(time.time())
+    sep = '&' if '?' in base_url else '?'
+    return f'{base_url}{sep}t={ts}'
 
 
 # User Registration API
@@ -167,7 +188,7 @@ class CurrentUserAPIView(APIView):
                     review_count=Count('id'),
                     avg_rating=Avg('rating'),
                 )
-                data['photo_url'] = profile.profile_picture.url if profile.profile_picture else None
+                data['photo_url'] = _profile_picture_url(profile.profile_picture)
                 data['artisan_profile'] = {
                     'id': profile.pk,
                     'profession': profile.profession,
@@ -179,7 +200,7 @@ class CurrentUserAPIView(APIView):
                     'location': profile.location,
                     'latitude': str(profile.latitude) if profile.latitude else None,
                     'longitude': str(profile.longitude) if profile.longitude else None,
-                    'profile_picture': profile.profile_picture.url if profile.profile_picture else None,
+                    'profile_picture': _profile_picture_url(profile.profile_picture),
                     'is_verified': profile.is_verified,
                     'is_available': profile.is_available,
                     'bio': profile.bio,
@@ -189,12 +210,12 @@ class CurrentUserAPIView(APIView):
         elif user.role == User.Role.CUSTOMER:
             try:
                 profile = user.customerprofile
-                data['photo_url'] = profile.profile_picture.url if profile.profile_picture else None
+                data['photo_url'] = _profile_picture_url(profile.profile_picture)
                 data['customer_profile'] = {
                     'id': profile.pk,
                     'address': profile.address,
                     'bio': profile.bio,
-                    'profile_picture': profile.profile_picture.url if profile.profile_picture else None,
+                    'profile_picture': _profile_picture_url(profile.profile_picture),
                 }
             except CustomerProfile.DoesNotExist:
                 pass
@@ -804,7 +825,7 @@ class ProfilePictureUploadView(APIView):
 
         return Response({
             'message': 'Profile picture updated successfully',
-            'photo_url': profile.profile_picture.url if profile.profile_picture else None,
+            'photo_url': _profile_picture_url(profile.profile_picture),
         })
 
 
@@ -1274,3 +1295,62 @@ class ResendEmailVerifyView(APIView):
             return Response({'message': generic_message}, status=status.HTTP_200_OK)
 
         return Response({'message': generic_message}, status=status.HTTP_200_OK)
+
+
+# ── Authenticated Media File Serving ──────────────────────────
+# In production (DEBUG=False), Django does not serve media files and
+# WhiteNoise only handles /static/.  When Cloudinary is not configured,
+# we need a fallback to serve uploaded profile pictures and other media.
+# This view requires authentication so only logged-in users can access files.
+
+
+def serve_media_file(request, path):
+    """Serve a media file to an authenticated user.
+
+    GET /api/media/<path>
+
+    In production without Cloudinary, media files stored under MEDIA_ROOT
+    are not reachable via /media/ because Django's static() helper only
+    serves media during development.  This view fills that gap while
+    requiring authentication, so uploaded files are not publicly accessible.
+    """
+    # Only allow authenticated users to access media files
+    if not request.user.is_authenticated:
+        return HttpResponseForbidden("Authentication required.")
+
+    # Prevent directory traversal
+    clean_path = os.path.normpath(path).lstrip('/\\')
+    if clean_path.startswith('..') or '..' in clean_path.split(os.sep):
+        return HttpResponseNotFound("Invalid path.")
+
+    file_path = os.path.join(settings.MEDIA_ROOT, clean_path)
+
+    # Ensure the resolved path is still within MEDIA_ROOT
+    if not os.path.abspath(file_path).startswith(os.path.abspath(settings.MEDIA_ROOT)):
+        return HttpResponseNotFound("Invalid path.")
+
+    if not os.path.isfile(file_path):
+        return HttpResponseNotFound("File not found.")
+
+    # Determine content type from file extension
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(file_path)
+    if content_type is None:
+        content_type = 'application/octet-stream'
+
+    # Only serve image files (profile pictures, portfolio images, etc.)
+    allowed_image_types = {
+        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+        'image/heic', 'image/heif',
+    }
+    if content_type not in allowed_image_types:
+        return HttpResponseForbidden("Only image files can be served.")
+
+    try:
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type=content_type)
+            # Cache for 1 hour — profile pictures rarely change
+            response['Cache-Control'] = 'private, max-age=3600'
+            return response
+    except IOError:
+        return HttpResponseNotFound("File not found.")

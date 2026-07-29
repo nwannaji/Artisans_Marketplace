@@ -1,7 +1,24 @@
 # serializers.py
+import os
+import time
+
 from rest_framework import serializers
 from accounts.models import ArtisanProfile
 from .models_portfolio import PortfolioImage
+
+
+def _cache_busted_url(field):
+    """Return the URL for an ImageField with a cache-busting timestamp."""
+    if not field:
+        return None
+    base_url = field.url
+    try:
+        mtime = os.path.getmtime(field.path)
+        ts = int(mtime)
+    except (OSError, ValueError):
+        ts = int(time.time())
+    sep = '&' if '?' in base_url else '?'
+    return f'{base_url}{sep}t={ts}'
 
 
 class PortfolioImageSerializer(serializers.ModelSerializer):
@@ -30,6 +47,7 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
     review_count = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = ArtisanProfile
@@ -45,6 +63,9 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
     def get_review_count(self, obj):
         from reviews.models import Review
         return Review.objects.filter(artisan=obj).count()
+
+    def get_profile_picture(self, obj):
+        return _cache_busted_url(obj.profile_picture)
 
     def validate_skills(self, value):
         if not isinstance(value, list):

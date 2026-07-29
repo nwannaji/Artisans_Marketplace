@@ -193,12 +193,21 @@ class Artisan extends Equatable {
   }
 
   /// Resolve a relative URL (e.g. "/media/...") to a full absolute URL.
-  /// If the URL is already absolute (starts with http), return it as-is.
-  /// Returns null for null input.
+  ///
+  /// - Cloudinary / absolute URLs (starting with http) are returned as-is.
+  /// - Relative ``/media/`` paths are routed through the authenticated
+  ///   ``/api/media/`` endpoint so the Flutter app can fetch them with
+  ///   an auth token (important in production where Django doesn't serve
+  ///   /media/ directly).
+  /// - Other relative paths are prefixed with the API base URL.
   static String? _resolveUrl(String? url) {
     if (url == null || url.isEmpty) return null;
     if (url.startsWith('http')) return url;
     final base = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000';
+    // Route media files through the authenticated endpoint
+    if (url.startsWith('/media/')) {
+      return '$base/api/media/${url.substring('/media/'.length)}';
+    }
     return '$base$url';
   }
 

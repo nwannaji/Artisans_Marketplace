@@ -1,4 +1,6 @@
+import os
 import secrets
+import time
 
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -6,6 +8,26 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomerProfile, ArtisanProfile, OTPVerification
+
+User = get_user_model()
+
+
+def _cache_busted_url(field):
+    """Return the URL for an ImageField with a cache-busting timestamp.
+
+    Appends ``?t=<updated_at_epoch>`` so clients fetch a fresh copy
+    whenever the picture changes.  Returns ``None`` when the field is empty.
+    """
+    if not field:
+        return None
+    base_url = field.url
+    try:
+        mtime = os.path.getmtime(field.path)
+        ts = int(mtime)
+    except (OSError, ValueError):
+        ts = int(time.time())
+    sep = '&' if '?' in base_url else '?'
+    return f'{base_url}{sep}t={ts}'
 
 User = get_user_model()
 
@@ -126,6 +148,7 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
     review_count = serializers.SerializerMethodField()
     subscription_tier = serializers.SerializerMethodField()
     subscription_badge = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = ArtisanProfile
@@ -156,6 +179,9 @@ class ArtisanProfileSerializer(serializers.ModelSerializer):
             return 'Pro'
         return None
 
+    def get_profile_picture(self, obj):
+        return _cache_busted_url(obj.profile_picture)
+
     def validate_skills(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError("Skills must be a list.")
@@ -174,6 +200,7 @@ class ArtisanAdminProfileSerializer(serializers.ModelSerializer):
     user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
     subscription_tier = serializers.SerializerMethodField()
     subscription_badge = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = ArtisanProfile
@@ -199,6 +226,9 @@ class ArtisanAdminProfileSerializer(serializers.ModelSerializer):
         elif tier == 'PRO':
             return 'Pro'
         return None
+
+    def get_profile_picture(self, obj):
+        return _cache_busted_url(obj.profile_picture)
 
 
 # Artisan self-service profile update serializer
@@ -252,6 +282,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     user_is_active = serializers.BooleanField(source='user.is_active', read_only=True)
     job_count = serializers.SerializerMethodField()
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomerProfile
@@ -261,6 +292,9 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     def get_job_count(self, obj):
         from bookings.models import Job
         return Job.objects.filter(customer=obj.user).count()
+
+    def get_profile_picture(self, obj):
+        return _cache_busted_url(obj.profile_picture)
 
 
 # Forgot Password Serializer
